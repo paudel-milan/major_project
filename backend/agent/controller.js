@@ -65,7 +65,10 @@ class AgentController {
 
       // Step 3: Add user message to buffer
       conversationBuffer.addMessage(sessionId, 'user', userMessage);
-      this._broadcast('ai_thinking', { sessionId });
+      this._broadcast('ai_thinking', {
+        sessionId,
+        detail: 'Analyzing your request and preparing context…',
+      });
 
       // Step 4: Build context
       logger.logAgentStep('3-Context', 'Building context');
@@ -85,7 +88,10 @@ class AgentController {
 
       // Step 5: Call LLM
       logger.logAgentStep('4-LLM', 'Calling LLM provider');
-      this._broadcast('ai_generating', { sessionId });
+      this._broadcast('ai_generating', {
+        sessionId,
+        detail: 'AI is writing your website code…',
+      });
 
       const { response: llmResponse, provider: usedProvider } = await registry.generateWithFallback(
         prompt, context, provider
@@ -93,6 +99,11 @@ class AgentController {
 
       // Step 6: Parse and write files
       logger.logAgentStep('5-CodeGen', 'Processing LLM response');
+      this._broadcast('ai_generating', {
+        sessionId,
+        detail: `Processing generated files…`,
+      });
+
       const { updatedFiles, description } = await codeGenerator.processResponse(projectId, llmResponse);
 
       // Step 7: Add AI response to buffer
@@ -100,7 +111,10 @@ class AgentController {
 
       // Step 8: Build the project
       logger.logAgentStep('6-Build', 'Building project');
-      this._broadcast('build_start', { projectId });
+      this._broadcast('build_start', {
+        projectId,
+        detail: `Compiling ${updatedFiles.length} file(s)…`,
+      });
 
       const buildResult = await buildEngine.build(projectId, (status) => {
         this._broadcast('build_progress', status);

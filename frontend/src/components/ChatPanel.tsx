@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { useChat } from '../hooks/useChat';
 import MessageBubble, { TypingIndicator } from './MessageBubble';
+import type { AgentStep } from '../types';
 
 interface Props {
   onProjectId?: (id: string) => void;
+  agentSteps?: AgentStep[];
+  agentStatusText?: string | null;
 }
 
-export default function ChatPanel({ onProjectId }: Props) {
+export default function ChatPanel({ onProjectId, agentSteps, agentStatusText }: Props) {
   const { messages, isLoading, projectId, sendMessage, clearChat } = useChat();
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -15,7 +18,7 @@ export default function ChatPanel({ onProjectId }: Props) {
   // Auto-scroll on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, agentSteps, agentStatusText]);
 
   // Notify parent of project ID changes
   useEffect(() => {
@@ -112,7 +115,12 @@ export default function ChatPanel({ onProjectId }: Props) {
             {messages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
-            {isLoading && <TypingIndicator />}
+            {isLoading && (
+              <TypingIndicator
+                statusText={agentStatusText}
+                steps={agentSteps}
+              />
+            )}
             <div ref={bottomRef} />
           </div>
         )}

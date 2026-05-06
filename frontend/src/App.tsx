@@ -7,7 +7,7 @@ import StatusBar from './components/StatusBar';
 import { useWebSocket } from './hooks/useWebSocket';
 
 export default function App() {
-  const { isConnected, buildStatus, shouldReload } = useWebSocket();
+  const { isConnected, buildStatus, shouldReload, agentSteps, agentStatusText } = useWebSocket();
   const [projectId, setProjectId] = useState<string | null>(null);
 
   const handleProjectId = useCallback((id: string) => {
@@ -24,7 +24,11 @@ export default function App() {
           minLeftWidth={25}
           maxLeftWidth={55}
           leftPanel={
-            <ChatPanel onProjectId={handleProjectId} />
+            <ChatPanel
+              onProjectId={handleProjectId}
+              agentSteps={agentSteps}
+              agentStatusText={agentStatusText}
+            />
           }
           rightPanel={
             <SandboxPreview

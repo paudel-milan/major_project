@@ -7,12 +7,21 @@ export interface ChatMessage {
   timestamp: number;
   files?: string[];        // Files affected by this message
   isError?: boolean;
+  type?: 'message' | 'status' | 'plan';  // Status updates shown inline
 }
 
 export interface WSEvent {
   event: string;
   data: Record<string, unknown>;
   timestamp: number;
+}
+
+export interface AgentStep {
+  id: string;
+  label: string;
+  status: 'pending' | 'active' | 'done' | 'error';
+  detail?: string;
+  timestamp?: number;
 }
 
 export interface BuildStatus {
