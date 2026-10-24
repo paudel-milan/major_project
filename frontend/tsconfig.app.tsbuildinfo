@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/chatpanel.tsx","./src/components/header.tsx","./src/components/messagebubble.tsx","./src/components/sandboxpreview.tsx","./src/components/splitlayout.tsx","./src/components/statusbar.tsx","./src/hooks/usechat.ts","./src/hooks/usewebsocket.ts","./src/types/index.ts"],"version":"5.6.3"}

@@ -1,4 +1,4 @@
-import type { ChatMessage } from '../types';
+import type { ChatMessage, AgentStep } from '../types';
 
 interface Props {
   message: ChatMessage;
@@ -54,17 +54,70 @@ export default function MessageBubble({ message }: Props) {
   );
 }
 
-export function TypingIndicator() {
+/* ─── Live Typing Indicator with real-time status updates ─── */
+
+interface TypingProps {
+  statusText?: string | null;
+  steps?: AgentStep[];
+}
+
+export function TypingIndicator({ statusText, steps }: TypingProps) {
+  const hasSteps = steps && steps.length > 0;
+
   return (
     <div className="flex justify-start animate-fade-in">
-      <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl rounded-bl-md px-4 py-3">
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl rounded-bl-md px-4 py-3 max-w-[90%] w-full">
+        {/* Pipeline steps */}
+        {hasSteps && (
+          <div className="flex flex-col gap-1.5 mb-2">
+            {steps.map((step) => (
+              <div key={step.id} className="flex items-center gap-2">
+                {/* Step icon */}
+                {step.status === 'done' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                ) : step.status === 'active' ? (
+                  <div className="w-3.5 h-3.5 shrink-0 flex items-center justify-center">
+                    <div className="w-3 h-3 border-2 border-purple-500/30 border-t-purple-400 rounded-full animate-spin" />
+                  </div>
+                ) : step.status === 'error' ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                    <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
+                  </svg>
+                ) : (
+                  <div className="w-3.5 h-3.5 shrink-0 flex items-center justify-center">
+                    <div className="w-2 h-2 rounded-full bg-[var(--text-muted)]/30" />
+                  </div>
+                )}
+
+                {/* Step label */}
+                <span className={`text-xs leading-tight ${
+                  step.status === 'done' ? 'text-emerald-400/80' :
+                  step.status === 'active' ? 'text-[var(--text-primary)]' :
+                  step.status === 'error' ? 'text-red-400' :
+                  'text-[var(--text-muted)]/50'
+                }`}>
+                  {step.label}
+                  {step.status === 'error' && step.detail && (
+                    <span className="text-[10px] text-red-400/70 ml-1">— {step.detail}</span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Current status text */}
         <div className="flex items-center gap-2">
           <div className="flex gap-1">
             <div className="w-2 h-2 rounded-full bg-purple-400 typing-dot" />
             <div className="w-2 h-2 rounded-full bg-purple-400 typing-dot" />
             <div className="w-2 h-2 rounded-full bg-purple-400 typing-dot" />
           </div>
-          <span className="text-xs text-[var(--text-muted)]">AI is thinking...</span>
+          <span className="text-xs text-[var(--text-muted)]">
+            {statusText || 'AI is thinking…'}
+          </span>
         </div>
       </div>
     </div>
