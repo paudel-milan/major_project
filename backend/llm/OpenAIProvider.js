@@ -1,6 +1,6 @@
 /**
  * OpenAI LLM Provider — uses the openai npm package.
- * Supports GPT-4o, GPT-4, GPT-3.5-turbo.
+ * Supports standard OpenAI and Azure OpenAI endpoints via custom base URLs.
  */
 
 import { BaseLLMProvider } from './BaseLLMProvider.js';
@@ -11,6 +11,7 @@ export class OpenAIProvider extends BaseLLMProvider {
     super();
     this._apiKey = process.env.OPENAI_API_KEY || '';
     this._model = process.env.OPENAI_MODEL || 'gpt-4o';
+    this._baseUrl = process.env.OPENAI_BASE_URL || '';
     this._client = null;
 
     if (this._apiKey) {
@@ -29,7 +30,18 @@ export class OpenAIProvider extends BaseLLMProvider {
     if (!this._client) {
       try {
         const { default: OpenAI } = await import('openai');
-        this._client = new OpenAI({ apiKey: this._apiKey });
+        const options = { apiKey: this._apiKey };
+        
+        if (this._baseUrl) {
+          options.baseURL = this._baseUrl;
+          
+          // If using an Azure backend, authenticate with the api-key header explicitly
+          if (this._baseUrl.includes('azure')) {
+            options.defaultHeaders = { 'api-key': this._apiKey };
+          }
+        }
+        
+        this._client = new OpenAI(options);
       } catch {
         throw new Error('openai package not installed. Run: npm install openai');
       }
@@ -46,17 +58,34 @@ export class OpenAIProvider extends BaseLLMProvider {
       { role: 'user', content: prompt },
     ];
 
+    // Ensure Azure-based JSON modes don't fail by injecting a system instruction if missing
+    if (this._baseUrl.includes('azure') && !prompt.toLowerCase().includes('json')) {
+      messages.unshift({ role: 'system', content: 'You must return your response as a valid JSON object.' });
+    }
+
     const startTime = Date.now();
     const promptTokens = Math.ceil(prompt.split(/\s+/).length * 1.3);
 
+    // Detect if this is a reasoning model (like gpt-5.4-mini or o-series)
+    const isReasoningModel = this._model.includes('mini') || this._model.startsWith('o1') || this._model.startsWith('o3');
+    
+    // Prepare dynamic payload to protect against 400 Bad Request parameter rejections
+    const apiOptions = {
+      model: this._model,
+      messages,
+      response_format: { type: 'json_object' },
+    };
+
+    if (isReasoningModel) {
+      apiOptions.max_completion_tokens = 16384; // Fixes your original error
+      // Temperature is unsupported on reasoning models and omitted entirely
+    } else {
+      apiOptions.max_tokens = 16384;
+      apiOptions.temperature = 0.7;
+    }
+
     try {
-      const completion = await client.chat.completions.create({
-        model: this._model,
-        messages,
-        temperature: 0.7,
-        max_tokens: 16384,
-        response_format: { type: 'json_object' },
-      });
+      const completion = await client.chat.completions.create(apiOptions);
 
       const content = completion.choices[0]?.message?.content || '';
       const durationMs = Date.now() - startTime;
@@ -74,7 +103,20 @@ export class OpenAIProvider extends BaseLLMProvider {
     if (!this.isConfigured()) return false;
     try {
       const client = await this._getClient();
-      await client.models.list();
+      
+      // Azure environments often restrict model listing. A quick ping test is safer.
+      if (this._baseUrl.includes('azure')) {
+        const isReasoningModel = this._model.includes('mini') || this._model.startsWith('o1') || this._model.startsWith('o3');
+        const tokenParam = isReasoningModel ? { max_completion_tokens: 5 } : { max_tokens: 5 };
+        
+        await client.chat.completions.create({
+          model: this._model,
+          messages: [{ role: 'user', content: 'ping' }],
+          ...tokenParam
+        });
+      } else {
+        await client.models.list();
+      }
       return true;
     } catch {
       return false;

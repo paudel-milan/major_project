@@ -1,9 +1,28 @@
 import { useState, useEffect } from 'react';
 import type { ProviderInfo } from '../types';
+import ConfigIndicator from './ConfigIndicator';
 
-export default function Header() {
+interface Props {
+  onOpenTokenDashboard?: () => void;
+  tokenCount?: number;
+  onStrategyChange?: (strategy: string) => void;
+  onProviderChange?: (provider: string) => void;
+  activeProvider?: string | null;
+  activeStrategy?: string | null;
+}
+
+export default function Header({
+  onOpenTokenDashboard,
+  tokenCount,
+  onStrategyChange,
+  onProviderChange,
+  activeProvider,
+  activeStrategy,
+}: Props) {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [serverUp, setServerUp] = useState(false);
+  const [configProvider, setConfigProvider] = useState<string | null>(null);
+  const [configStrategy, setConfigStrategy] = useState<string | null>(null);
 
   useEffect(() => {
     const check = async () => {
@@ -25,7 +44,11 @@ export default function Header() {
     return () => clearInterval(i);
   }, []);
 
-  const activeProvider = providers.find(p => p.isDefault && p.healthy)
+  // Prefer the explicit selection (from ConfigIndicator / server config) over the poll-derived default
+  const resolvedProvider = activeProvider || configProvider || null;
+  const resolvedStrategy = activeStrategy || configStrategy || null;
+
+  const providerForStatus = providers.find(p => p.isDefault && p.healthy)
     || providers.find(p => p.healthy);
 
   return (
@@ -54,19 +77,36 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Center — server status */}
-      <div className={`flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full border transition-all ${
-        serverUp
-          ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/5'
-          : 'text-red-400 border-red-500/20 bg-red-500/5'
-      }`}>
-        <div className={`w-1.5 h-1.5 rounded-full ${serverUp ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
-        {serverUp ? (activeProvider?.displayName || 'Connected') : 'Offline'}
+      {/* Center — Config & LLM Indicator */}
+      <div className="flex items-center gap-3">
+        <ConfigIndicator onStrategyChange={onStrategyChange} onProviderChange={onProviderChange} />
+        <div className={`flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full border transition-all ${
+          serverUp
+            ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/5'
+            : 'text-red-400 border-red-500/20 bg-red-500/5'
+        }`}>
+          <div className={`w-1.5 h-1.5 rounded-full ${serverUp ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+          {serverUp ? (resolvedProvider ? (providers.find(p => p.name === resolvedProvider)?.displayName || resolvedProvider) : (providerForStatus?.displayName || 'Connected')) : 'Offline'}
+        </div>
       </div>
 
-      {/* Right — info */}
-      <div className="flex items-center gap-2 text-[var(--text-muted)] text-[10px]">
-        <span>v1.0</span>
+      {/* Right — Token Dashboard Button & version */}
+      <div className="flex items-center gap-2.5">
+        <button
+          onClick={onOpenTokenDashboard}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gradient-to-r from-purple-600/15 to-pink-600/15 hover:from-purple-600/25 hover:to-pink-600/25 text-purple-300 border border-purple-500/30 hover:border-purple-500/50 text-[10px] font-medium transition-all shadow-sm active:scale-95"
+          title="Open Token Usage & Context Analytics Dashboard"
+        >
+          <span>📊</span>
+          <span>Token Dashboard</span>
+          {tokenCount !== undefined && tokenCount > 0 && (
+            <span className="text-[9px] font-mono px-1 rounded bg-purple-500/30 text-purple-200">
+              {tokenCount >= 1000 ? `${(tokenCount / 1000).toFixed(1)}k` : tokenCount}t
+            </span>
+          )}
+        </button>
+
+        <span className="text-[var(--text-muted)] text-[10px]">v1.0</span>
       </div>
     </header>
   );

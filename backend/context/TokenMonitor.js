@@ -4,6 +4,7 @@
  */
 
 import logger from '../utils/logger.js';
+import { countTokens, countMessagesTokens } from '../utils/tokenizer.js';
 
 class TokenMonitor {
   constructor() {
@@ -12,29 +13,21 @@ class TokenMonitor {
   }
 
   /**
-   * Estimate token count for a string.
-   * Heuristic: ~1.3 tokens per word (accounts for subword tokenization).
+   * Count tokens for a string using a real subword tokenizer (cl100k_base).
    * @param {string} text
    * @returns {number}
    */
   estimateTokens(text) {
-    if (!text) return 0;
-    const words = text.split(/\s+/).filter(w => w.length > 0).length;
-    return Math.ceil(words * 1.3);
+    return countTokens(text);
   }
 
   /**
-   * Estimate total tokens for a message array.
+   * Count total tokens for a message array (includes per-message overhead).
    * @param {Array<{role: string, content: string}>} messages
    * @returns {number}
    */
   estimateMessagesTokens(messages) {
-    let total = 0;
-    for (const msg of messages) {
-      total += this.estimateTokens(msg.content);
-      total += 4; // Role overhead (~4 tokens per message for formatting)
-    }
-    return total;
+    return countMessagesTokens(messages);
   }
 
   /**

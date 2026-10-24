@@ -5,6 +5,7 @@
 
 import { BaseLLMProvider } from './BaseLLMProvider.js';
 import logger from '../utils/logger.js';
+import { countTokens } from '../utils/tokenizer.js';
 
 export class OllamaProvider extends BaseLLMProvider {
   constructor() {
@@ -28,7 +29,6 @@ export class OllamaProvider extends BaseLLMProvider {
     ];
 
     const startTime = Date.now();
-    const promptTokens = Math.ceil(prompt.split(/\s+/).length * 1.3);
 
     logger.debug('Ollama', `Sending prompt (${prompt.length} chars) to ${this._model}`);
 
@@ -60,7 +60,9 @@ export class OllamaProvider extends BaseLLMProvider {
       }
 
       const durationMs = Date.now() - startTime;
-      const responseTokens = Math.ceil(assistantMessage.split(/\s+/).length * 1.3);
+      // Use real token counts reported by Ollama when available.
+      const promptTokens = data.prompt_eval_count ?? countTokens(prompt);
+      const responseTokens = data.eval_count ?? countTokens(assistantMessage);
       logger.logLLMCall('ollama', promptTokens, responseTokens, durationMs);
 
       return assistantMessage.trim();

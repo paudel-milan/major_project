@@ -7,41 +7,53 @@ An agentic AI system that generates complete React websites from natural languag
 ## Architecture
 
 ```
-┌─────────────────┐     REST/WS      ┌────────────────────────────────┐
-│                  │ ◄──────────────► │       Node.js Backend          │
-│  React Frontend  │                  │                                │
-│  (Vite + TS)     │                  │  ┌──────────────────────────┐  │
-│                  │                  │  │    Agent Controller       │  │
-│  ┌─────┬───────┐ │                  │  │  (orchestrates the loop)  │  │
-│  │Chat │Preview│ │                  │  └──────┬───────────────────┘  │
-│  │Panel│Sandbox│ │                  │         │                      │
-│  │ 40% │  60%  │ │                  │  ┌──────▼───────────────────┐  │
-│  └─────┴───────┘ │                  │  │   LLM Provider Registry   │  │
-└─────────────────┘                  │  │  Ollama│OpenAI│Gemini│Claude│
-                                     │  └──────┬───────────────────┘  │
-                                     │         │                      │
-                                     │  ┌──────▼──────┐ ┌──────────┐  │
-                                     │  │Context Mgmt │ │Build     │  │
-                                     │  │(Recursive   │ │Engine    │  │
-                                     │  │ Summarize)  │ │(Sandbox) │  │
-                                     │  └─────────────┘ └──────────┘  │
-                                     └────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              React Frontend (Vite + TS)                      │
+│  ┌────────────┬──────────────────────────────┬─────────────────────────────┐ │
+│  │  ChatPanel │  SandboxPreview (iframe)     │  Token Dashboard (modal)     │ │
+│  │  + Voice   │  live reload on WS event     │  context/token observability │ │
+│  └─────┬──────┴──────────────┬───────────────┴──────────────┬──────────────┘ │
+│        │ REST / WebSocket    │                              │                │
+└────────┼────────────────────┼──────────────────────────────┼────────────────┘
+         │                    │                              │
+┌────────▼────────────────────▼──────────────────────────────▼────────────────┐
+│                            Node.js Backend (Express + ws)                   │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                       Agent Controller (orchestrator)                │  │
+│  │   session → context → LLM → codegen → validate/repair → build → WS   │  │
+│  └──────┬───────────────┬──────────────────────┬───────────────────────┘  │
+│         │               │                      │                           │
+│  ┌──────▼──────┐ ┌──────▼──────────┐  ┌───────▼────────┐  ┌────────────┐ │
+│  │ LLM Registry│ │ Context Builder  │  │ Code Validator │  │ Build      │ │
+│  │ Ollama      │ │ recursive /      │  │ self-healing   │  │ Engine     │ │
+│  │ OpenAI      │ │ sliding /        │  │ (≤3 repairs)   │  │ (sandbox)  │ │
+│  │ Gemini      │ │ selective        │  └────────────────┘  └────────────┘ │
+│  │ Claude      │ └──────┬──────────┘                                     │
+│  └─────────────┘        │                                                │
+│                  ┌──────▼──────────┐  ┌─────────────────┐                  │
+│                  │ Conversation    │  │ Token Monitor   │                  │
+│                  │ Buffer +        │  │ (estimation)    │                  │
+│                  │ Summarization   │  └─────────────────┘                  │
+│                  └─────────────────┘                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Agent Loop
 
 ```
-User Message → Session → Context Builder → LLM → Code Generator → Build → WebSocket → Preview Reload
+User Message → Session → Context Builder → LLM → Code Generator → Validate/Repair → Build → WebSocket → Preview Reload
 ```
 
-1. User sends a message via chat
+1. User sends a message via chat (optionally by voice)
 2. Agent controller updates conversation buffer
-3. Context builder checks token limits, applies recursive summarization if needed
+3. Context builder checks token limits, applies the configured strategy if needed
 4. LLM generates structured JSON response with file contents
 5. Code generator writes only changed files (incremental)
-6. Build engine processes JSX and prepares sandbox
-7. WebSocket pushes `reload` event to frontend
-8. Sandbox iframe auto-refreshes
+6. Code validator validates output; self-healing loop repairs up to 3 attempts
+7. Build engine processes JSX and prepares sandbox
+8. WebSocket pushes `reload` event to frontend
+9. Sandbox iframe auto-refreshes
 
 ---
 
@@ -83,6 +95,7 @@ Frontend runs on **http://localhost:5173**
 3. Watch the AI generate the code
 4. See it rendered live in the right panel
 5. Iterate: *"Add a contact form with validation"*
+6. Open the Token Dashboard for context/token observability
 
 ---
 
@@ -111,7 +124,7 @@ CLAUDE_API_KEY=...
 CLAUDE_MODEL=claude-sonnet-4-20250514
 
 # Context management
-CONTEXT_STRATEGY=recursive_summarization   # or sliding_window
+CONTEXT_STRATEGY=selective_summarization   # recursive_summarization | sliding_window | selective_summarization
 CONTEXT_MAX_TOKENS=4000
 CONTEXT_SUMMARY_THRESHOLD=6
 ```
@@ -125,8 +138,9 @@ major_project/
 ├── backend/
 │   ├── server.js              # Express + WebSocket entry point
 │   ├── agent/
-│   │   ├── controller.js      # Agent loop orchestrator
-│   │   └── codeGenerator.js   # LLM response → files
+│   │   ├── controller.js      # Agent loop orchestrator (incl. self-healing)
+│   │   ├── codeGenerator.js   # LLM response → files
+│   │   └── codeValidator.js   # Validation + repair prompts
 │   ├── llm/
 │   │   ├── BaseLLMProvider.js  # Provider interface
 │   │   ├── OllamaProvider.js   # PRIMARY
@@ -138,6 +152,7 @@ major_project/
 │   │   ├── ContextStrategy.js  # Strategy interface
 │   │   ├── RecursiveSummarization.js
 │   │   ├── SlidingWindow.js
+│   │   ├── SelectiveSummarization.js  # Custom high-density blueprint
 │   │   ├── ConversationBuffer.js
 │   │   ├── TokenMonitor.js
 │   │   └── ContextBuilder.js   # Pipeline orchestrator
@@ -146,7 +161,8 @@ major_project/
 │   │   ├── ProjectManager.js   # File CRUD
 │   │   └── templateFiles.js    # React project scaffold
 │   ├── utils/
-│   │   └── logger.js           # Structured logging
+│   │   ├── logger.js           # Structured logging + metrics
+│   │   └── tokenizer.js        # Real tiktoken (cl100k_base) token counting
 │   └── sandbox/                # Generated apps (gitignored)
 │
 ├── frontend/
@@ -158,7 +174,12 @@ major_project/
 │   │   │   ├── SandboxPreview.tsx
 │   │   │   ├── SplitLayout.tsx
 │   │   │   ├── Header.tsx
-│   │   │   └── StatusBar.tsx
+│   │   │   ├── StatusBar.tsx
+│   │   │   ├── ContextPanel.tsx
+│   │   │   ├── TokenDashboard.tsx
+│   │   │   ├── AgentProgress.tsx
+│   │   │   ├── ConfigIndicator.tsx
+│   │   │   └── VoiceInput.tsx
 │   │   ├── hooks/
 │   │   │   ├── useWebSocket.ts
 │   │   │   └── useChat.ts
@@ -174,12 +195,28 @@ major_project/
 ## Key Features
 
 - **Iterative editing** — only changed files are regenerated
-- **Recursive summarization** — compresses conversation history to stay within token limits
-- **Pluggable LLM providers** — switch between Ollama, OpenAI, Gemini, Claude
-- **Modular context strategies** — swap summarization approaches via config
-- **Real-time WebSocket updates** — build status, reload events
+- **Context management strategies** — recursive summarization, sliding window, selective semantic (custom, recommended)
+- **Selective semantic summarization** — extracts high-density architectural blueprints with ~4.5–7.0x compression
+- **Self-healing code generation** — validates output and auto-repairs up to 3 attempts
+- **Token dashboard** — real-time context window, token distribution, strategy benchmark, provider status
+- **Pluggable LLM providers** — switch between Ollama, OpenAI, Gemini, Claude with runtime fallback
+- **Voice input** — speech-to-text in chat
+- **Real-time WebSocket updates** — build status, reload, agent progress, context compression events
 - **Live sandbox preview** — iframe-based rendering of generated React apps
+- **Real token counting** — tiktoken `cl100k_base` for context estimates; Ollama `prompt_eval_count`/`eval_count` and OpenAI `usage` for actual prompt/completion tokens
 - **Structured logging** — token usage, response time, context size, build time
+
+---
+
+## Major Design Decisions
+
+1. **Ollama as default provider** — free, local, no API keys; OpenAI/Gemini/Claude optional via env.
+2. **Strategy pattern for context** — `ContextStrategy` interface with swappable implementations; default `selective_summarization`.
+3. **Heuristic token estimation** — word-based `words * 1.3` for fast, dependency-free monitoring.
+4. **Self-healing loop** — `codeValidator` feeds issues back to LLM; caps at 3 repair attempts to bound cost.
+5. **Incremental file writes** — generator emits only changed files; project manager merges into existing project.
+6. **WebSocket broadcast** — single channel for build, reload, progress, and compression events.
+7. **Observability-first frontend** — Token Dashboard surfaces context hit, compression savings, and provider health.
 
 ---
 
@@ -188,8 +225,11 @@ major_project/
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/chat` | Send message to AI agent |
-| `GET`  | `/api/status` | Health check + provider status |
+| `GET`  | `/api/status` | Health check + provider status + metrics |
 | `GET`  | `/api/providers` | List available LLM providers |
+| `GET`  | `/api/config` | Current provider, strategy, available options |
+| `POST` | `/api/provider` | Switch active LLM provider at runtime |
+| `POST` | `/api/strategy` | Switch context strategy at runtime |
 | `GET`  | `/api/project/:id/files` | Get generated project files |
 | `GET`  | `/api/project/:id/status` | Get build status |
 | `GET`  | `/api/session/:id` | Get session info |
@@ -205,6 +245,7 @@ major_project/
 | Backend | Node.js, Express, ES Modules |
 | Realtime | WebSocket (ws) |
 | LLM | Ollama (default), OpenAI, Gemini, Claude |
+| Tokenizer | tiktoken `cl100k_base` (@dqbd/tiktoken) with heuristic fallback |
 | Preview | iframe + CDN React/Babel |
 
 ---

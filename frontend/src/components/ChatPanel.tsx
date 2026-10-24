@@ -1,26 +1,40 @@
 import { useState, useRef, useEffect } from 'react';
 import { useChat } from '../hooks/useChat';
-import MessageBubble, { TypingIndicator } from './MessageBubble';
+import MessageBubble from './MessageBubble';
+import VoiceInput from './VoiceInput';
+import AgentProgress from './AgentProgress';
+import ContextPanel from './ContextPanel';
+import type { AgentProgressState, ContextMetrics } from '../types';
 
 interface Props {
   onProjectId?: (id: string) => void;
+  agentProgress?: AgentProgressState;
+  onContextMetricsChange?: (metrics: ContextMetrics) => void;
 }
 
-export default function ChatPanel({ onProjectId }: Props) {
-  const { messages, isLoading, projectId, sendMessage, clearChat } = useChat();
+export default function ChatPanel({ onProjectId, agentProgress, onContextMetricsChange }: Props) {
+  const { messages, isLoading, projectId, contextMetrics, sendMessage, clearChat } = useChat();
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll on new messages
+  // Auto-scroll on new messages or loading progress
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, agentProgress]);
 
   // Notify parent of project ID changes
   useEffect(() => {
     if (projectId && onProjectId) onProjectId(projectId);
   }, [projectId, onProjectId]);
+
+  // Notify parent of context metrics changes
+  useEffect(() => {
+    const active = contextMetrics || agentProgress?.contextMetrics;
+    if (active && onContextMetricsChange) {
+      onContextMetricsChange(active);
+    }
+  }, [contextMetrics, agentProgress?.contextMetrics, onContextMetricsChange]);
 
   const handleSend = () => {
     if (!input.trim() || isLoading) return;
@@ -45,7 +59,18 @@ export default function ChatPanel({ onProjectId }: Props) {
     ta.style.height = Math.min(ta.scrollHeight, 150) + 'px';
   };
 
+  const handleVoiceTranscript = (text: string) => {
+    setInput(prev => (prev ? `${prev} ${text}` : text));
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight + 20, 150) + 'px';
+    }
+  };
+
   const isEmpty = messages.length === 0;
+
+  // Determine current active strategy name
+  const currentStrategy = agentProgress?.contextMetrics?.strategy || 'recursive_summarization';
 
   return (
     <div className="flex flex-col h-full">
@@ -112,11 +137,18 @@ export default function ChatPanel({ onProjectId }: Props) {
             {messages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
-            {isLoading && <TypingIndicator />}
+            {(isLoading || agentProgress?.isActive) && (
+              <AgentProgress progress={agentProgress || { isActive: isLoading, steps: [] }} />
+            )}
             <div ref={bottomRef} />
           </div>
         )}
       </div>
+
+      {/* Context visibility panel */}
+      {contextMetrics && (
+        <ContextPanel metrics={contextMetrics} strategy={currentStrategy} />
+      )}
 
       {/* Input area */}
       <div className="shrink-0 p-3 border-t border-[var(--border-subtle)]">
@@ -128,11 +160,16 @@ export default function ChatPanel({ onProjectId }: Props) {
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Describe your website..."
+            placeholder="Describe your website or speak..."
             rows={1}
             className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none outline-none max-h-[150px]"
             disabled={isLoading}
           />
+          
+          {/* Voice Input Microphone Button */}
+          <VoiceInput onTranscript={handleVoiceTranscript} disabled={isLoading} />
+
+          {/* Send Button */}
           <button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
@@ -149,9 +186,10 @@ export default function ChatPanel({ onProjectId }: Props) {
           </button>
         </div>
         <p className="text-[9px] text-[var(--text-muted)] text-center mt-1.5">
-          Press Enter to send · Shift+Enter for new line
+          Press Enter to send · Shift+Enter for new line · Click mic to speak
         </p>
       </div>
     </div>
   );
 }
+

@@ -130,6 +130,67 @@ app.get('/api/metrics', (req, res) => {
   res.json(logger.getMetrics());
 });
 
+/**
+ * GET /api/config — Get current LLM provider, model, and context strategy.
+ */
+app.get('/api/config', async (req, res) => {
+  try {
+    const providers = await registry.getStatus();
+    const currentDefault = registry.getDefaultProviderName();
+    const activeProvider = providers.find(p => p.name === currentDefault)
+      || providers.find(p => p.isDefault && p.healthy)
+      || providers.find(p => p.healthy)
+      || providers[0];
+    res.json({
+      provider: activeProvider?.name || 'none',
+      displayName: activeProvider?.displayName || 'No Provider',
+      availableProviders: providers,
+      strategy: contextBuilder.getStrategyName(),
+      availableStrategies: contextBuilder.getAvailableStrategies(),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/provider — Switch active LLM provider at runtime.
+ * Body: { provider: 'ollama' | 'openai' | 'gemini' | 'claude' }
+ */
+app.post('/api/provider', (req, res) => {
+  const { provider } = req.body;
+  if (!provider) {
+    return res.status(400).json({ error: 'Provider name is required' });
+  }
+  try {
+    const selected = registry.setDefaultProvider(provider);
+    res.json({
+      success: true,
+      provider: selected.name,
+      displayName: selected.displayName,
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/strategy — Switch context management strategy at runtime.
+ * Body: { strategy: 'recursive_summarization' | 'sliding_window' | 'selective_summarization' }
+ */
+app.post('/api/strategy', (req, res) => {
+  const { strategy } = req.body;
+  if (!strategy) {
+    return res.status(400).json({ error: 'Strategy name is required' });
+  }
+  const validStrategies = contextBuilder.getAvailableStrategies();
+  if (!validStrategies.includes(strategy)) {
+    return res.status(400).json({ error: `Invalid strategy. Valid: ${validStrategies.join(', ')}` });
+  }
+  contextBuilder.setStrategy(strategy);
+  res.json({ success: true, strategy: contextBuilder.getStrategyName() });
+});
+
 // ─── HTTP + WebSocket Server ───
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { ChatMessage, AgentResponse } from '../types';
+import type { ChatMessage, AgentResponse, ContextMetrics } from '../types';
 
 const API_BASE = '/api';
 
@@ -9,6 +9,8 @@ export function useChat() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [contextMetrics, setContextMetrics] = useState<ContextMetrics | null>(null);
+  const [lastProvider, setLastProvider] = useState<string | null>(null);
 
   const sendMessage = useCallback(async (content: string, provider?: string) => {
     if (!content.trim() || isLoading) return;
@@ -45,6 +47,8 @@ export function useChat() {
       // Update session/project IDs
       if (data.sessionId) setSessionId(data.sessionId);
       if (data.projectId) setProjectId(data.projectId);
+      if (data.provider) setLastProvider(data.provider);
+      if (data.contextMetrics) setContextMetrics(data.contextMetrics);
 
       // Add AI message
       const aiMsg: ChatMessage = {
@@ -77,6 +81,8 @@ export function useChat() {
     setSessionId(null);
     setProjectId(null);
     setError(null);
+    setContextMetrics(null);
+    setLastProvider(null);
   }, []);
 
   return {
@@ -85,7 +91,10 @@ export function useChat() {
     sessionId,
     projectId,
     error,
+    contextMetrics,
+    lastProvider,
     sendMessage,
     clearChat,
   };
 }
+

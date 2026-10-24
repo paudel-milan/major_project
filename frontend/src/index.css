@@ -103,3 +103,52 @@ html, body, #root {
 }
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ─── Voice Recording Pulse ─── */
+@keyframes voice-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+
+@keyframes voice-wave {
+  0%, 100% { height: 4px; }
+  50% { height: 16px; }
+}
+
+.voice-recording {
+  animation: voice-pulse 1.5s ease-in-out infinite;
+}
+
+.voice-wave-bar {
+  width: 3px;
+  border-radius: 2px;
+  background: #ef4444;
+  animation: voice-wave 0.8s ease-in-out infinite;
+}
+.voice-wave-bar:nth-child(1) { animation-delay: 0s; }
+.voice-wave-bar:nth-child(2) { animation-delay: 0.15s; }
+.voice-wave-bar:nth-child(3) { animation-delay: 0.3s; }
+.voice-wave-bar:nth-child(4) { animation-delay: 0.45s; }
+.voice-wave-bar:nth-child(5) { animation-delay: 0.1s; }
+
+/* ─── Agent Progress Spinner ─── */
+@keyframes progress-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.progress-spinner {
+  animation: progress-spin 1s linear infinite;
+}
+
+/* ─── Context Panel Slide ─── */
+@keyframes slide-down {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 300px; }
+}
+
+.context-panel-enter {
+  animation: slide-down 0.3s ease-out forwards;
+  overflow: hidden;
+}
+

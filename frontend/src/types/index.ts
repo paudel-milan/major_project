@@ -30,6 +30,22 @@ export interface ProviderInfo {
   isDefault: boolean;
 }
 
+export interface ContextMetrics {
+  messageTokens: number;
+  summaryTokens: number;
+  totalTokens: number;
+  maxTokens: number;
+  utilization: string;
+  isOverLimit: boolean;
+  previousTokens?: number;
+  wasCompressed?: boolean;
+  strategy?: string;
+  contextHit?: boolean;
+  thresholdHit?: boolean;
+  summaryContent?: string;
+  turnCount?: number;
+}
+
 export interface AgentResponse {
   success: boolean;
   sessionId: string;
@@ -40,14 +56,7 @@ export interface AgentResponse {
   buildSuccess?: boolean;
   duration?: number;
   error?: string;
-  contextMetrics?: {
-    messageTokens: number;
-    summaryTokens: number;
-    totalTokens: number;
-    maxTokens: number;
-    utilization: string;
-    isOverLimit: boolean;
-  };
+  contextMetrics?: ContextMetrics;
 }
 
 export interface StatusResponse {
@@ -63,3 +72,31 @@ export interface StatusResponse {
     summarizations: number;
   };
 }
+
+// ─── Agent Progress Types ───
+
+export type AgentStepName = 'understanding' | 'context' | 'planning' | 'generating' | 'validating' | 'building' | 'complete';
+export type AgentStepStatus = 'pending' | 'active' | 'complete' | 'error';
+
+export interface AgentStep {
+  name: AgentStepName;
+  label: string;
+  status: AgentStepStatus;
+}
+
+export interface AgentProgressState {
+  isActive: boolean;
+  steps: AgentStep[];
+  contextMetrics?: ContextMetrics;
+}
+
+// ─── Config Types ───
+
+export interface ConfigInfo {
+  provider: string;
+  displayName: string;
+  strategy: string;
+  availableStrategies: string[];
+  availableProviders?: ProviderInfo[];
+}
+

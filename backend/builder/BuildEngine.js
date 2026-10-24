@@ -75,41 +75,85 @@ class BuildEngine {
 
   /**
    * Process component files to ensure they work with browser-based module system.
-   * Adds window.ComponentName exports for each component.
+   * Strips ES imports, adds React hook globals, and ensures window exports.
    */
   async _processComponents(projectId) {
     const files = projectManager.getProjectFiles(projectId);
 
     for (const [filePath, content] of Object.entries(files)) {
       if (filePath.endsWith('.jsx') || filePath.endsWith('.js')) {
-        // Ensure components are globally accessible
         let processed = content;
 
-        // Remove ES module imports (React is global via CDN)
-        processed = processed.replace(/^import\s+React.*from\s+['"]react['"];?\s*$/gm, '');
-        processed = processed.replace(/^import\s+\{.*\}\s+from\s+['"]react['"];?\s*$/gm, '');
+        // 1. Remove all React-related import statements
+        //    - import React from 'react'
+        //    - import { useState, useEffect } from 'react'
+        //    - import React, { useState } from 'react'
+        //    - import ReactDOM from 'react-dom'
+        //    - import * as React from 'react'
+        processed = processed.replace(/^import\s+(?:React|ReactDOM|\*\s+as\s+React).*from\s+['"]react(?:-dom)?['"];?\s*$/gm, '');
+        processed = processed.replace(/^import\s+\{[^}]*\}\s+from\s+['"]react(?:-dom)?['"];?\s*$/gm, '');
+        processed = processed.replace(/^import\s+React\s*,\s*\{[^}]*\}\s+from\s+['"]react['"];?\s*$/gm, '');
 
-        // Extract default export name and add window assignment
-        const defaultExportMatch = processed.match(/export\s+default\s+(\w+)/);
-        if (defaultExportMatch) {
-          const componentName = defaultExportMatch[1];
-          processed = processed.replace(/export\s+default\s+\w+;?\s*$/, '');
-          processed += `\nwindow.${componentName} = ${componentName};\n`;
+        // 2. Inject React hook destructuring at the top so bare useState() works
+        //    (The global aliases from index.html handle this too, but this is a safety net
+        //     for when components are loaded before the global <script> runs)
+        const hookLine = 'const { useState, useEffect, useRef, useCallback, useMemo, useReducer, useContext, createContext, Fragment } = React;\n';
+        // Only inject if the file uses any hooks and doesn't already have the destructuring
+        const usesHooks = /\b(useState|useEffect|useRef|useCallback|useMemo|useReducer|useContext|createContext)\s*[.(]/.test(processed);
+        const alreadyHasDestructuring = /const\s*\{[^}]*useState[^}]*\}\s*=\s*React/.test(processed);
+        if (usesHooks && !alreadyHasDestructuring) {
+          processed = hookLine + processed;
         }
 
-        // Handle `export default function ComponentName`
+        // 3. Handle exports — order matters: check `export default function/class` FIRST,
+        //    then `export default <Name>` (the simple re-export form)
         const funcExportMatch = processed.match(/export\s+default\s+function\s+(\w+)/);
+        const classExportMatch = processed.match(/export\s+default\s+class\s+(\w+)/);
+        const arrowExportMatch = processed.match(/export\s+default\s+(\([^)]*\)|[a-zA-Z_]\w*)\s*=>/);
+
         if (funcExportMatch) {
+          // `export default function Foo(...)` → `function Foo(...)`
           const componentName = funcExportMatch[1];
-          processed = processed.replace('export default function', 'function');
+          processed = processed.replace(/export\s+default\s+function\s+/, 'function ');
           processed += `\nwindow.${componentName} = ${componentName};\n`;
+        } else if (classExportMatch) {
+          // `export default class Foo` → `class Foo`
+          const componentName = classExportMatch[1];
+          processed = processed.replace(/export\s+default\s+class\s+/, 'class ');
+          processed += `\nwindow.${componentName} = ${componentName};\n`;
+        } else if (arrowExportMatch) {
+          // `export default () => ...` — wrap in a named function
+          // Extract a name from the file path
+          const baseName = filePath.replace(/.*\//, '').replace(/\.(jsx|js)$/, '');
+          const componentName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
+          processed = processed.replace(/export\s+default\s+/, `const ${componentName} = `);
+          processed += `\nwindow.${componentName} = ${componentName};\n`;
+        } else {
+          // `export default SomeComponent;` (simple re-export)
+          const simpleExportMatch = processed.match(/export\s+default\s+(\w+)\s*;?/);
+          if (simpleExportMatch) {
+            const componentName = simpleExportMatch[1];
+            processed = processed.replace(/export\s+default\s+\w+\s*;?/, '');
+            processed += `\nwindow.${componentName} = ${componentName};\n`;
+          }
         }
 
-        // Replace relative imports with window references
+        // 4. Replace relative imports with window references
         processed = processed.replace(
-          /import\s+(\w+)\s+from\s+['"]\.\/(components\/)?(\w+)['"];?/g,
+          /import\s+(\w+)\s+from\s+['"]\.\/(?:components\/)?([\w/]+)['"];?/g,
           (match, name) => `const ${name} = window.${name};`
         );
+
+        // 5. For App.jsx specifically, ensure window.AppComponent is set
+        //    even if the LLM named the component something other than App
+        if (filePath === 'src/App.jsx' && !processed.includes('window.AppComponent')) {
+          // Find the main function/const declaration
+          const mainFuncMatch = processed.match(/(?:function|const|class)\s+(\w+)/);
+          if (mainFuncMatch) {
+            const name = mainFuncMatch[1];
+            processed += `\nwindow.AppComponent = ${name};\n`;
+          }
+        }
 
         // Write processed file
         const projectPath = projectManager.getProjectPath(projectId);
@@ -120,6 +164,7 @@ class BuildEngine {
 
   /**
    * Update index.html to include script tags for all component files.
+   * Component scripts must load BEFORE App.jsx so window references resolve.
    */
   async _updateIndexHtml(projectId) {
     const files = projectManager.getProjectFiles(projectId);
@@ -134,6 +179,7 @@ class BuildEngine {
       .sort();
 
     // Build script tags for components (must load before App.jsx)
+    // Use type="text/babel" consistently (NO data-type="module" for components)
     const componentScripts = componentFiles
       .map(f => `  <script type="text/babel" src="./${f}"></script>`)
       .join('\n');

@@ -33,6 +33,26 @@ class ProviderRegistry {
   }
 
   /**
+   * Set active default provider at runtime.
+   * @param {string} name
+   */
+  setDefaultProvider(name) {
+    if (!this._providers.has(name)) {
+      throw new Error(`Unknown LLM provider: ${name}. Available: ${[...this._providers.keys()].join(', ')}`);
+    }
+    this._defaultProvider = name;
+    logger.info('Registry', `Switched active default provider to: ${name}`);
+    return this.getProvider(name);
+  }
+
+  /**
+   * Get active default provider name.
+   */
+  getDefaultProviderName() {
+    return this._defaultProvider;
+  }
+
+  /**
    * Get a specific provider by name.
    * @param {string} name
    * @returns {import('./BaseLLMProvider.js').BaseLLMProvider}

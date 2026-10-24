@@ -10,12 +10,14 @@ import conversationBuffer from './ConversationBuffer.js';
 import tokenMonitor from './TokenMonitor.js';
 import { RecursiveSummarization } from './RecursiveSummarization.js';
 import { SlidingWindow } from './SlidingWindow.js';
+import { SelectiveSummarization } from './SelectiveSummarization.js';
 import logger from '../utils/logger.js';
 
 // Strategy registry
 const STRATEGIES = {
   recursive_summarization: new RecursiveSummarization(),
   sliding_window: new SlidingWindow(),
+  selective_summarization: new SelectiveSummarization(),
 };
 
 class ContextBuilder {
@@ -37,6 +39,9 @@ class ContextBuilder {
     const messages = conversationBuffer.getMessages(sessionId);
     const existingSummary = conversationBuffer.getSummary(sessionId);
     const turnCount = conversationBuffer.getTurnCount(sessionId);
+
+    // Capture original token count before any compression
+    const previousTokens = tokenMonitor.estimateMessagesTokens(messages);
 
     // Check if we need to compress
     let processedMessages = messages;
@@ -71,15 +76,31 @@ class ContextBuilder {
     const systemPrompt = this._buildSystemPrompt(projectContext);
     const context = this._assembleContext(systemPrompt, currentSummary, processedMessages);
 
+    // Determine context hit & metrics
+    const contextHit = messages.length > 1 || !!currentSummary;
+    const thresholdHit = !!shouldCompress;
+
     // Get metrics for logging
-    const metrics = tokenMonitor.getMetrics(processedMessages, currentSummary);
-    logger.logContextSize(sessionId, processedMessages.length, metrics.totalTokens, !!currentSummary);
+    const rawMetrics = tokenMonitor.getMetrics(processedMessages, currentSummary);
+    logger.logContextSize(sessionId, processedMessages.length, rawMetrics.totalTokens, !!currentSummary);
+
+    const metrics = {
+      ...rawMetrics,
+      contextHit,
+      thresholdHit,
+      summaryContent: currentSummary || '',
+      turnCount,
+      strategy: this._strategy.name,
+      previousTokens,
+      wasCompressed,
+    };
 
     return {
       prompt: userMessage,
       context,
       metrics,
       wasCompressed,
+      previousTokens,
     };
   }
 
@@ -154,6 +175,13 @@ EXAMPLE RESPONSE FORMAT:
     }
 
     return context;
+  }
+
+  /**
+   * Get all registered strategy names.
+   */
+  getAvailableStrategies() {
+    return Object.keys(STRATEGIES);
   }
 
   /**
