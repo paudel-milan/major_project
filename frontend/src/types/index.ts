@@ -16,14 +16,6 @@ export interface WSEvent {
   timestamp: number;
 }
 
-export interface AgentStep {
-  id: string;
-  label: string;
-  status: 'pending' | 'active' | 'done' | 'error';
-  detail?: string;
-  timestamp?: number;
-}
-
 export interface BuildStatus {
   status: 'idle' | 'building' | 'ready' | 'error';
   error?: string;
@@ -85,12 +77,15 @@ export interface StatusResponse {
 // ─── Agent Progress Types ───
 
 export type AgentStepName = 'understanding' | 'context' | 'planning' | 'generating' | 'validating' | 'building' | 'complete';
-export type AgentStepStatus = 'pending' | 'active' | 'complete' | 'error';
+export type AgentStepStatus = 'pending' | 'active' | 'complete' | 'done' | 'error';
 
 export interface AgentStep {
+  id?: string;
   name: AgentStepName;
   label: string;
   status: AgentStepStatus;
+  detail?: string;
+  timestamp?: number;
 }
 
 export interface AgentProgressState {
