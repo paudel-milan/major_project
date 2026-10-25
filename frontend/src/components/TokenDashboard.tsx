@@ -4,6 +4,16 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  CartesianGrid,
+} from 'recharts';
 import type { ContextMetrics, StatusResponse, ProviderInfo, ContextEvent, ContextBudget } from '../types';
 
 interface Props {
@@ -669,6 +679,85 @@ export default function TokenDashboard({
                         {formatTokens(Math.max(0, contextBudget.thresholdTokens - currentTotalTokens))}
                       </span>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Context Events Chart */}
+              {contextEvents.length > 0 && (
+                <div className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl p-4 space-y-3">
+                  <h4 className="text-xs font-bold text-[var(--text-secondary)]">
+                    Token Flow Over Events
+                  </h4>
+                  <div className="h-48 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={[...contextEvents].reverse().map((e, i) => ({
+                          name: e.type.replace(/_/g, ' '),
+                          index: i + 1,
+                          before: e.tokensBefore ?? 0,
+                          after: e.tokensAfter ?? 0,
+                          saved: e.tokensSaved ?? 0,
+                        }))}
+                        margin={{ top: 8, right: 10, bottom: 24, left: 36 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="white/10" vertical={false} />
+                        <XAxis
+                          dataKey="index"
+                          tick={{ fontSize: 9, fill: 'var(--text-muted)' }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 9, fill: 'var(--text-muted)' }}
+                          tickFormatter={(v) => Math.round(Number(v)).toLocaleString()}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          formatter={(value, name) => [formatTokens(Number(value)), name === 'before' ? 'Before' : name === 'after' ? 'After' : 'Saved']}
+                          labelFormatter={(label) => `Event #${label}`}
+                          contentStyle={{
+                            backgroundColor: 'var(--bg-secondary)',
+                            border: '1px solid var(--border-subtle)',
+                            color: 'var(--text-primary)',
+                          }}
+                        />
+                        <ReferenceLine
+                          y={contextBudget ? contextBudget.thresholdTokens : 0}
+                          stroke="red"
+                          strokeDasharray="3 3"
+                          label={{ value: 'Threshold', position: 'top', fill: 'red', fontSize: 9 }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="before"
+                          stroke="#f59e0b"
+                          strokeWidth="2"
+                          dot={{ fill: '#f59e0b', r: 3 }}
+                          name="before"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="after"
+                          stroke="#8b5cf6"
+                          strokeWidth="2"
+                          dot={{ fill: '#8b5cf6', r: 3 }}
+                          name="after"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex items-center gap-4 text-[9px] text-[var(--text-muted)]">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" /> Before
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-purple-500" /> After
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-red-500" /> Threshold
+                    </span>
                   </div>
                 </div>
               )}
