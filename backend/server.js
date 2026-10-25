@@ -19,6 +19,7 @@ import projectManager from './builder/ProjectManager.js';
 import buildEngine from './builder/BuildEngine.js';
 import conversationBuffer from './context/ConversationBuffer.js';
 import contextBuilder from './context/ContextBuilder.js';
+import contextEventLog from './context/ContextEventLog.js';
 import logger from './utils/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -115,8 +116,24 @@ app.get('/api/project/:id/status', (req, res) => {
 });
 
 /**
- * GET /api/session/:id — Get session info.
+ * GET /api/context-events/:sessionId — Get context lifecycle events for a session.
  */
+app.get('/api/context-events/:sessionId', (req, res) => {
+  const events = contextEventLog.getEvents(req.params.sessionId);
+  res.json({ sessionId: req.params.sessionId, events, state: contextEventLog.getState(req.params.sessionId) });
+});
+
+/**
+ * GET /api/context-budget — Get context budget configuration.
+ */
+app.get('/api/context-budget', (req, res) => {
+  res.json({
+    maxTokens: parseInt(process.env.CONTEXT_MAX_TOKENS || '32000', 10),
+    summaryThreshold: parseInt(process.env.CONTEXT_SUMMARY_THRESHOLD || '6', 10),
+    thresholdPercent: 70,
+    thresholdTokens: Math.round(parseInt(process.env.CONTEXT_MAX_TOKENS || '32000', 10) * 0.7),
+  });
+});
 app.get('/api/session/:id', (req, res) => {
   const info = conversationBuffer.getSessionInfo(req.params.id);
   if (!info) return res.status(404).json({ error: 'Session not found' });
@@ -191,7 +208,49 @@ app.post('/api/strategy', (req, res) => {
   res.json({ success: true, strategy: contextBuilder.getStrategyName() });
 });
 
-// ─── HTTP + WebSocket Server ───
+/**
+ * POST /api/context-demo — Dev-only: simulate context pressure using actual context management logic.
+ * Body: { sessionId?: string, messageCount?: number }
+ */
+app.post('/api/context-demo', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Context demo is disabled in production' });
+  }
+
+  const sessionId = req.body?.sessionId || `demo-${Date.now()}`;
+  const messageCount = Math.min(req.body?.messageCount || 20, 100);
+
+  try {
+    // Seed the session with synthetic messages
+    const session = conversationBuffer.getOrCreateSession(sessionId);
+    for (let i = 0; i < messageCount; i++) {
+      conversationBuffer.addMessage(sessionId, i % 2 === 0 ? 'user' : 'assistant',
+        `This is synthetic message ${i + 1} for context pressure testing. It contains enough text to simulate a real conversation turn with meaningful content about website building and React components.`);
+    }
+
+    // Trigger context build (which will trigger summarization if threshold crossed)
+    const llmCallForSummary = async (prompt) => {
+      const { response } = await registry.generateWithFallback(prompt, [], null);
+      return response;
+    };
+
+    const result = await contextBuilder.buildContext(sessionId, 'Demo prompt', null, llmCallForSummary);
+
+    const events = contextEventLog.getEvents(sessionId);
+
+    res.json({
+      sessionId,
+      demo: true,
+      contextMetrics: result.metrics,
+      wasCompressed: result.wasCompressed,
+      previousTokens: result.previousTokens,
+      events,
+      state: contextEventLog.getState(sessionId),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 

@@ -12,6 +12,7 @@ import { RecursiveSummarization } from './RecursiveSummarization.js';
 import { SlidingWindow } from './SlidingWindow.js';
 import { SelectiveSummarization } from './SelectiveSummarization.js';
 import logger from '../utils/logger.js';
+import contextEventLog from './ContextEventLog.js';
 
 // Strategy registry
 const STRATEGIES = {
@@ -55,14 +56,58 @@ class ContextBuilder {
     const shouldCompress = tokenMonitor.needsSummarization(turnCount) ||
       fullContextTokens > tokenMonitor.maxTokens;
 
+    // Record context assembly start event
+    contextEventLog.record(sessionId, {
+      type: 'CONTEXT_ASSEMBLED',
+      status: 'info',
+      trigger: 'User prompt received',
+      tokensBefore: previousTokens,
+      tokensAfter: previousTokens,
+      details: { messageCount: messages.length, hasSummary: !!existingSummary },
+    });
+
+    // Determine threshold crossing
+    const thresholdTokens = Math.round(tokenMonitor.maxTokens * 0.7);
+    if (fullContextTokens >= thresholdTokens && fullContextTokens < tokenMonitor.maxTokens) {
+      contextEventLog.record(sessionId, {
+        type: 'APPROACHING_THRESHOLD',
+        status: 'warning',
+        trigger: `Context at ${fullContextTokens} tokens, threshold ${thresholdTokens}`,
+        tokensBefore: fullContextTokens,
+        tokensAfter: fullContextTokens,
+        details: { threshold: thresholdTokens, maxTokens: tokenMonitor.maxTokens },
+      });
+    }
+
     if (shouldCompress && messages.length >= 4) {
       logger.info('ContextBuilder', `Compressing context for session ${sessionId} (${messages.length} messages, turn ${turnCount})`);
 
+      const summarizationTokensBefore = fullContextTokens;
+
+      contextEventLog.record(sessionId, {
+        type: 'SUMMARIZATION_REQUIRED',
+        status: 'warning',
+        trigger: tokenMonitor.needsSummarization(turnCount) ? 'Turn threshold reached' : 'Token limit exceeded',
+        tokensBefore: fullContextTokens,
+        tokensAfter: null,
+        details: { turnCount, threshold: tokenMonitor.summaryThreshold, maxTokens: tokenMonitor.maxTokens },
+      });
+
+      contextEventLog.record(sessionId, {
+        type: 'SUMMARIZATION_IN_PROGRESS',
+        status: 'info',
+        trigger: 'Recursive summarization started',
+        tokensBefore: fullContextTokens,
+        tokensAfter: null,
+      });
+
+      const summarizationStart = Date.now();
       const result = await this._strategy.process(messages, {
         maxTokens: tokenMonitor.maxTokens,
         existingSummary,
         llmCall,
       });
+      const summarizationDurationMs = Date.now() - summarizationStart;
 
       processedMessages = result.messages;
       currentSummary = result.summary;
@@ -73,6 +118,41 @@ class ContextBuilder {
         conversationBuffer.setMessages(sessionId, processedMessages);
         conversationBuffer.setSummary(sessionId, currentSummary);
         conversationBuffer.resetTurnCount(sessionId);
+
+        // Recount after compression
+        const systemPromptTokensEst = tokenMonitor.estimateTokens(this._buildSystemPrompt(projectContext));
+        const afterTokens = tokenMonitor.estimateMessagesTokens(processedMessages) + tokenMonitor.estimateTokens(currentSummary || '') + systemPromptTokensEst;
+
+        contextEventLog.record(sessionId, {
+          type: 'SUMMARIZATION_COMPLETED',
+          status: 'success',
+          trigger: 'Recursive summarization finished',
+          tokensBefore: summarizationTokensBefore,
+          tokensAfter: afterTokens,
+          durationMs: summarizationDurationMs,
+          details: { messagesBefore: messages.length, messagesAfter: processedMessages.length },
+        });
+
+        contextEventLog.record(sessionId, {
+          type: 'CONTEXT_REBUILT',
+          status: 'success',
+          trigger: 'Context rebuilt after summarization',
+          tokensBefore: summarizationTokensBefore,
+          tokensAfter: afterTokens,
+          details: { strategy: this._strategy.name },
+        });
+
+        // Check if still over budget
+        if (afterTokens > tokenMonitor.maxTokens) {
+          contextEventLog.record(sessionId, {
+            type: 'BUDGET_EXCEEDED',
+            status: 'error',
+            trigger: `After compression: ${afterTokens} > ${tokenMonitor.maxTokens}`,
+            tokensBefore: afterTokens,
+            tokensAfter: afterTokens,
+            details: { maxTokens: tokenMonitor.maxTokens },
+          });
+        }
       }
     }
 

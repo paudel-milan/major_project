@@ -232,7 +232,7 @@ class AgentController {
         buildSuccess: buildResult.success,
         duration: totalDuration,
         repairAttempts: repairAttempt,
-        contextMetrics: { ...metrics, previousTokens, wasCompressed, strategy: contextBuilder.getStrategyName() },
+        contextMetrics: { ...metrics, previousTokens, wasCompressed, strategy: contextBuilder.getStrategyName(), sessionId },
       };
     } catch (error) {
       logger.error('Agent', `Agent loop failed: ${error.message}`);

@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { ContextMetrics, StatusResponse, ProviderInfo } from '../types';
+import type { ContextMetrics, StatusResponse, ProviderInfo, ContextEvent, ContextBudget } from '../types';
 
 interface Props {
   isOpen: boolean;
@@ -31,7 +31,11 @@ export default function TokenDashboard({
   const [metricsData, setMetricsData] = useState<StatusResponse['metrics'] | null>(null);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'strategies' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'strategies' | 'history' | 'events'>('overview');
+  const [contextEvents, setContextEvents] = useState<ContextEvent[]>([]);
+  const [contextState, setContextState] = useState<string>('INITIAL');
+  const [contextBudget, setContextBudget] = useState<ContextBudget | null>(null);
+  const [demoRunning, setDemoRunning] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchMetrics = async () => {
@@ -50,11 +54,68 @@ export default function TokenDashboard({
     }
   };
 
+  const fetchContextBudget = async () => {
+    try {
+      const res = await fetch('/api/context-budget');
+      if (res.ok) {
+        const data: ContextBudget = await res.json();
+        setContextBudget(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch context budget:', err);
+    }
+  };
+
+  // Determine sessionId from contextMetrics or use a default for demo
+  const fetchContextEvents = async () => {
+    const sid = contextMetrics?.sessionId;
+    if (!sid) return;
+    try {
+      const res = await fetch(`/api/context-events/${sid}`);
+      if (res.ok) {
+        const data = await res.json();
+        setContextEvents(data.events || []);
+        setContextState(data.state || 'INITIAL');
+      }
+    } catch (err) {
+      console.error('Failed to fetch context events:', err);
+    }
+  };
+
+  const runContextDemo = async () => {
+    setDemoRunning(true);
+    try {
+      const res = await fetch('/api/context-demo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageCount: 20 }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setContextEvents(data.events || []);
+        setContextState(data.state || 'INITIAL');
+        if (data.contextMetrics) {
+          // Don't overwrite the real contextMetrics, just show demo results in events
+        }
+      }
+    } catch (err) {
+      console.error('Context demo failed:', err);
+    } finally {
+      setDemoRunning(false);
+    }
+  };
+
   // Live polling while dashboard is open
   useEffect(() => {
     if (isOpen) {
       fetchMetrics();
-      pollRef.current = setInterval(fetchMetrics, 3000);
+      fetchContextBudget();
+      fetchContextEvents();
+      pollRef.current = setInterval(() => {
+        fetchMetrics();
+        fetchContextBudget();
+        fetchContextEvents();
+      }, 3000);
     }
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -190,6 +251,16 @@ export default function TokenDashboard({
           >
             <span>🎯</span> Context Hits & Memory
           </button>
+          <button
+            onClick={() => setActiveTab('events')}
+            className={`pb-2.5 px-3 text-xs font-semibold transition-all border-b-2 flex items-center gap-1.5 ${
+              activeTab === 'events'
+                ? 'border-purple-500 text-purple-400'
+                : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+            }`}
+          >
+            <span>📋</span> Context Events
+          </button>
         </div>
 
         {/* Modal Body */}
@@ -247,12 +318,16 @@ export default function TokenDashboard({
                         <span className="text-blue-400">🎯</span>
                       </div>
                       <div className="text-2xl font-black font-mono text-blue-400 flex items-center gap-2">
-                        {contextMetrics.contextHit ? 'HIT' : 'INITIAL'}
+                        {contextState || (contextMetrics?.contextHit ? 'HIT' : 'INITIAL')}
                       </div>
                       <div className="text-[11px] text-[var(--text-muted)] mt-1">
-                        {contextMetrics.contextHit
-                          ? `Turn ${contextMetrics.turnCount || 1} memory active`
-                          : 'Cold start seed'}
+                        {contextState === 'SUMMARIZATION_COMPLETED'
+                          ? 'Context was compressed'
+                          : contextState === 'APPROACHING_THRESHOLD'
+                            ? 'Approaching compression threshold'
+                            : contextMetrics?.contextHit
+                              ? `Turn ${contextMetrics.turnCount || 1} memory active`
+                              : 'Cold start seed'}
                       </div>
                     </div>
 
@@ -308,6 +383,18 @@ export default function TokenDashboard({
                       <span>{THRESHOLD_PCT}% — Compression Trigger</span>
                       <span>100% ({formatTokens(maxTokens)} Tokens)</span>
                     </div>
+                    {contextBudget && (
+                      <div className="text-[10px] text-[var(--text-muted)] mt-1">
+                        Tokens until summarization trigger:{' '}
+                        <span className="font-mono text-emerald-400">
+                          {formatTokens(Math.max(0, (contextBudget.thresholdTokens || maxTokens * 0.7) - currentTotalTokens))}
+                        </span>
+                        {' '}| Remaining input budget:{' '}
+                        <span className="font-mono text-blue-400">
+                          {formatTokens(Math.max(0, maxTokens - currentTotalTokens))}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Token Composition Breakdown */}
@@ -524,6 +611,123 @@ export default function TokenDashboard({
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'events' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold text-[var(--text-primary)]">
+                    Context Events Timeline
+                  </h3>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    Live events from the context management pipeline (persisted per session)
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono px-2 py-1 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    State: {contextState}
+                  </span>
+                  {process.env.NODE_ENV !== 'production' && (
+                    <button
+                      onClick={runContextDemo}
+                      disabled={demoRunning}
+                      className="text-[10px] px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+                    >
+                      {demoRunning ? 'Running...' : '🧪 Simulate Context Pressure (Dev)'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Context Budget Card */}
+              {contextBudget && (
+                <div className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl p-4 space-y-2">
+                  <h4 className="text-xs font-bold text-[var(--text-secondary)]">Context Budget</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
+                    <div className="p-2 rounded bg-white/5">
+                      <span className="text-[var(--text-muted)] block">Model Limit</span>
+                      <span className="font-mono text-[var(--text-secondary)]">{formatTokens(contextBudget.maxTokens)}</span>
+                    </div>
+                    <div className="p-2 rounded bg-white/5">
+                      <span className="text-[var(--text-muted)] block">Threshold ({contextBudget.thresholdPercent}%)</span>
+                      <span className="font-mono text-yellow-400">{formatTokens(contextBudget.thresholdTokens)}</span>
+                    </div>
+                    <div className="p-2 rounded bg-white/5">
+                      <span className="text-[var(--text-muted)] block">Current Usage</span>
+                      <span className="font-mono text-purple-400">{formatTokens(currentTotalTokens)}</span>
+                    </div>
+                    <div className="p-2 rounded bg-white/5">
+                      <span className="text-[var(--text-muted)] block">Until Trigger</span>
+                      <span className="font-mono text-emerald-400">
+                        {formatTokens(Math.max(0, contextBudget.thresholdTokens - currentTotalTokens))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Events Timeline */}
+              <div className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl p-4 space-y-3">
+                <h4 className="text-xs font-bold text-[var(--text-secondary)]">
+                  Event Timeline ({contextEvents.length} events)
+                </h4>
+                {contextEvents.length === 0 ? (
+                  <div className="p-6 rounded-lg bg-white/[0.01] border border-dashed border-[var(--border-subtle)] text-center text-xs text-[var(--text-muted)]">
+                    No context events yet. Send a message or run the demo to generate events.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {[...contextEvents].reverse().map((event) => (
+                      <div
+                        key={event.id}
+                        className={`p-3 rounded-lg border text-xs ${
+                          event.status === 'error'
+                            ? 'bg-red-500/5 border-red-500/20'
+                            : event.status === 'success'
+                              ? 'bg-emerald-500/5 border-emerald-500/20'
+                              : event.status === 'warning'
+                                ? 'bg-yellow-500/5 border-yellow-500/20'
+                                : 'bg-white/[0.02] border-[var(--border-subtle)]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-[var(--text-secondary)]">{event.type}</span>
+                          <span className="text-[9px] text-[var(--text-muted)] font-mono">
+                            {new Date(event.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        {event.trigger && (
+                          <p className="text-[10px] text-[var(--text-muted)] mb-1">{event.trigger}</p>
+                        )}
+                        <div className="flex items-center gap-3 text-[9px] font-mono text-[var(--text-muted)]">
+                          {event.tokensBefore != null && (
+                            <span>Before: {formatTokens(event.tokensBefore)}</span>
+                          )}
+                          {event.tokensAfter != null && (
+                            <span>After: {formatTokens(event.tokensAfter)}</span>
+                          )}
+                          {event.tokensSaved != null && event.tokensSaved > 0 && (
+                            <span className="text-emerald-400">Saved: {formatTokens(event.tokensSaved)} ({event.reductionPercent}%)</span>
+                          )}
+                          {event.durationMs != null && (
+                            <span>Duration: {event.durationMs}ms</span>
+                          )}
+                        </div>
+                        {event.details && Object.keys(event.details).length > 0 && (
+                          <details className="mt-1">
+                            <summary className="text-[9px] text-[var(--text-muted)] cursor-pointer">Details</summary>
+                            <pre className="text-[8px] text-[var(--text-muted)] mt-1 overflow-x-auto">
+                              {JSON.stringify(event.details, null, 2)}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

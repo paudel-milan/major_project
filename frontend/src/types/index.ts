@@ -45,6 +45,7 @@ export interface ContextMetrics {
   thresholdHit?: boolean;
   summaryContent?: string;
   turnCount?: number;
+  sessionId?: string;
   // Per-category token breakdown (estimated where exact attribution unavailable)
   categoryBreakdown?: {
     systemPrompt?: number;
@@ -109,7 +110,27 @@ export interface AgentProgressState {
   contextMetrics?: ContextMetrics;
 }
 
-// ─── Config Types ───
+export interface ContextEvent {
+  id: string;
+  timestamp: string;
+  type: string;
+  status: 'info' | 'warning' | 'success' | 'error';
+  trigger: string;
+  tokensBefore: number | null;
+  tokensAfter: number | null;
+  tokensSaved: number | null;
+  reductionPercent: number | null;
+  durationMs: number | null;
+  requestId: string | null;
+  details: Record<string, unknown>;
+}
+
+export interface ContextBudget {
+  maxTokens: number;
+  summaryThreshold: number;
+  thresholdPercent: number;
+  thresholdTokens: number;
+}
 
 export interface ConfigInfo {
   provider: string;
