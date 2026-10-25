@@ -223,6 +223,9 @@ export default function TokenDashboard({
                           {utilizationPct.toFixed(1)}%
                         </span>
                       </div>
+                      <div className="text-[9px] text-[var(--text-muted)]/60 mt-1">
+                        Context window for next request (input only)
+                      </div>
                     </div>
 
                     <div className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl p-4 relative overflow-hidden">
@@ -262,7 +265,7 @@ export default function TokenDashboard({
                         {metricsData?.totalRequests || 0}
                       </div>
                       <div className="text-[11px] text-[var(--text-muted)] mt-1">
-                        Avg {formatTokens(avgTokensPerReq)} tokens/call
+                        Avg {formatTokens(avgTokensPerReq)} total (prompt+completion)/call
                       </div>
                     </div>
                   </div>
@@ -585,24 +588,32 @@ export default function TokenDashboard({
                 <h4 className="text-xs font-bold text-[var(--text-secondary)]">
                   Global Metrics (Server)
                 </h4>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-[var(--text-muted)]">Total Requests</span>
-                    <span className="font-mono text-[var(--text-secondary)]">{metricsData?.totalRequests || 0}</span>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-muted)]">Total Requests</span>
+                      <span className="font-mono text-[var(--text-secondary)]">{metricsData?.totalRequests || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-muted)]">Total Input Tokens</span>
+                      <span className="font-mono text-[var(--text-secondary)]">{formatTokens(metricsData?.totalInputTokens || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-muted)]">Total Output Tokens</span>
+                      <span className="font-mono text-[var(--text-secondary)]">{formatTokens(metricsData?.totalOutputTokens || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-muted)]">Total Tokens (All Calls)</span>
+                      <span className="font-mono text-[var(--text-secondary)]">{formatTokens(metricsData?.totalTokensEstimated || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-muted)]">Summarizations</span>
+                      <span className="font-mono text-[var(--text-secondary)]">{metricsData?.summarizations || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-muted)]">Avg Tokens/Request</span>
+                      <span className="font-mono text-[var(--text-secondary)]">{formatTokens(avgTokensPerReq)}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--text-muted)]">Total Tokens Estimated</span>
-                    <span className="font-mono text-[var(--text-secondary)]">{formatTokens(metricsData?.totalTokensEstimated || 0)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--text-muted)]">Summarizations</span>
-                    <span className="font-mono text-[var(--text-secondary)]">{metricsData?.summarizations || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--text-muted)]">Avg Tokens/Request</span>
-                    <span className="font-mono text-[var(--text-secondary)]">{formatTokens(avgTokensPerReq)}</span>
-                  </div>
-                </div>
               </div>
             </div>
           )}

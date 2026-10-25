@@ -8,13 +8,15 @@ const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
 class Logger {
   constructor() {
     this.level = LOG_LEVELS[process.env.LOG_LEVEL || 'info'] || 1;
-    this.metrics = {
-      totalRequests: 0,
-      totalTokensEstimated: 0,
-      totalBuildTime: 0,
-      totalLLMTime: 0,
-      summarizations: 0,
-    };
+  this.metrics = {
+    totalRequests: 0,
+    totalTokensEstimated: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalBuildTime: 0,
+    totalLLMTime: 0,
+    summarizations: 0,
+  };
   }
 
   _timestamp() {
@@ -62,6 +64,8 @@ class Logger {
 
   logLLMCall(provider, promptTokens, responseTokens, durationMs) {
     this.metrics.totalRequests++;
+    this.metrics.totalInputTokens += promptTokens;
+    this.metrics.totalOutputTokens += responseTokens;
     this.metrics.totalTokensEstimated += (promptTokens + responseTokens);
     this.metrics.totalLLMTime += durationMs;
 

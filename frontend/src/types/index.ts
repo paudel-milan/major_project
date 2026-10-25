@@ -81,6 +81,8 @@ export interface StatusResponse {
   metrics: {
     totalRequests: number;
     totalTokensEstimated: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
     totalBuildTime: number;
     totalLLMTime: number;
     summarizations: number;
