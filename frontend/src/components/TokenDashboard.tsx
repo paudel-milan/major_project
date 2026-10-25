@@ -88,15 +88,23 @@ export default function TokenDashboard({
     ? Math.round(totalEstimated / Math.max(1, metricsData.totalRequests))
     : currentTotalTokens;
 
-  // Token composition breakdown
-  const summaryTokens = contextMetrics?.summaryTokens || 0;
-  const messageTokens = contextMetrics?.messageTokens || 0;
-  const systemPromptEstimate = Math.min(650, currentTotalTokens);
-  const remainingMessageTokens = Math.max(0, messageTokens - systemPromptEstimate);
+  // Token composition breakdown (from actual context assembly, not estimates)
+  const cb = contextMetrics?.categoryBreakdown;
+  const systemPromptTokens = cb?.systemPrompt ?? 0;
+  const summaryTokens = cb?.summaryMemory ?? (contextMetrics?.summaryTokens || 0);
+  const conversationTokens = cb?.conversationHistory ?? (contextMetrics?.messageTokens || 0);
+  const userPromptTokens = cb?.userPrompt ?? 0;
+  const codeContextTokens = cb?.codeContext ?? 0;
+  const toolTokens = cb?.toolDefinitions ?? 0;
+  const otherTokens = cb?.other ?? 0;
 
-  const systemPct = currentTotalTokens > 0 ? Math.round((systemPromptEstimate / currentTotalTokens) * 100) : 25;
-  const summaryPct = currentTotalTokens > 0 ? Math.round((summaryTokens / currentTotalTokens) * 100) : 15;
-  const chatPct = Math.max(0, 100 - systemPct - summaryPct);
+  const totalForBreakdown = systemPromptTokens + summaryTokens + conversationTokens + userPromptTokens + codeContextTokens + toolTokens + otherTokens || currentTotalTokens || 1;
+
+  const systemPct = Math.round((systemPromptTokens / totalForBreakdown) * 100);
+  const summaryPct = Math.round((summaryTokens / totalForBreakdown) * 100);
+  const chatPct = Math.round((conversationTokens / totalForBreakdown) * 100);
+  const codePct = Math.round((codeContextTokens / totalForBreakdown) * 100);
+  const userPct = Math.round((userPromptTokens / totalForBreakdown) * 100);
 
   const THRESHOLD_PCT = 70;
 
@@ -309,27 +317,37 @@ export default function TokenDashboard({
                       <div
                         className="h-full bg-indigo-500 transition-all duration-300"
                         style={{ width: `${systemPct}%` }}
-                        title={`System Architecture Prompt: ~${systemPct}%`}
+                        title={`System Instructions: ${formatTokens(systemPromptTokens)} (${systemPct}%)`}
                       />
                       <div
                         className="h-full bg-purple-500 transition-all duration-300"
                         style={{ width: `${summaryPct}%` }}
-                        title={`Active Summary: ~${summaryPct}%`}
+                        title={`Summarisation Memory: ${formatTokens(summaryTokens)} (${summaryPct}%)`}
                       />
                       <div
                         className="h-full bg-pink-500 transition-all duration-300"
                         style={{ width: `${chatPct}%` }}
-                        title={`User & Assistant Exchanges: ~${chatPct}%`}
+                        title={`Conversation History: ${formatTokens(conversationTokens)} (${chatPct}%)`}
+                      />
+                      <div
+                        className="h-full bg-amber-500 transition-all duration-300"
+                        style={{ width: `${codePct}%` }}
+                        title={`Code/Project Context: ${formatTokens(codeContextTokens)} (${codePct}%)`}
+                      />
+                      <div
+                        className="h-full bg-emerald-500 transition-all duration-300"
+                        style={{ width: `${userPct}%` }}
+                        title={`User Prompt: ${formatTokens(userPromptTokens)} (${userPct}%)`}
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
                       <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white/[0.02] border border-indigo-500/20">
                         <div className="w-3 h-3 rounded-md bg-indigo-500 shrink-0" />
                         <div>
                           <div className="text-[10px] text-[var(--text-muted)] font-medium">System Instructions</div>
                           <div className="text-xs font-bold font-mono text-indigo-300">
-                            {formatTokens(systemPromptEstimate)} tokens ({systemPct}%)
+                            {formatTokens(systemPromptTokens)} ({systemPct}%)
                           </div>
                         </div>
                       </div>
@@ -339,7 +357,7 @@ export default function TokenDashboard({
                         <div>
                           <div className="text-[10px] text-[var(--text-muted)] font-medium">Summarisation Memory</div>
                           <div className="text-xs font-bold font-mono text-purple-300">
-                            {formatTokens(summaryTokens)} tokens ({summaryPct}%)
+                            {formatTokens(summaryTokens)} ({summaryPct}%)
                           </div>
                         </div>
                       </div>
@@ -347,13 +365,54 @@ export default function TokenDashboard({
                       <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white/[0.02] border border-pink-500/20">
                         <div className="w-3 h-3 rounded-md bg-pink-500 shrink-0" />
                         <div>
-                          <div className="text-[10px] text-[var(--text-muted)] font-medium">Active Code & Chat</div>
+                          <div className="text-[10px] text-[var(--text-muted)] font-medium">Conversation History</div>
                           <div className="text-xs font-bold font-mono text-pink-300">
-                            {formatTokens(remainingMessageTokens)} tokens ({chatPct}%)
+                            {formatTokens(conversationTokens)} ({chatPct}%)
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white/[0.02] border border-amber-500/20">
+                        <div className="w-3 h-3 rounded-md bg-amber-500 shrink-0" />
+                        <div>
+                          <div className="text-[10px] text-[var(--text-muted)] font-medium">Code/Project Context</div>
+                          <div className="text-xs font-bold font-mono text-amber-300">
+                            {formatTokens(codeContextTokens)} ({codePct}%)
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white/[0.02] border border-emerald-500/20">
+                        <div className="w-3 h-3 rounded-md bg-emerald-500 shrink-0" />
+                        <div>
+                          <div className="text-[10px] text-[var(--text-muted)] font-medium">User Prompt</div>
+                          <div className="text-xs font-bold font-mono text-emerald-300">
+                            {formatTokens(userPromptTokens)} ({userPct}%)
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white/[0.02] border border-gray-500/20">
+                        <div className="w-3 h-3 rounded-md bg-gray-500 shrink-0" />
+                        <div>
+                          <div className="text-[10px] text-[var(--text-muted)] font-medium">Tools & Other</div>
+                          <div className="text-xs font-bold font-mono text-gray-300">
+                            {formatTokens(toolTokens + otherTokens)} ({Math.round(((toolTokens + otherTokens) / totalForBreakdown) * 100)}%)
                           </div>
                         </div>
                       </div>
                     </div>
+
+                    {contextMetrics?.providerReported && (
+                      <div className="text-[9px] text-emerald-400/80 mt-2">
+                        ✓ Provider-reported token count (authoritative total: {formatTokens(currentTotalTokens)})
+                      </div>
+                    )}
+                    {!contextMetrics?.providerReported && (
+                      <div className="text-[9px] text-yellow-400/80 mt-2">
+                        ⚠ Estimated via js-tiktoken (cl100k_base) — actual may differ by model
+                      </div>
+                    )}
                   </div>
                 </>
               )}

@@ -99,10 +99,20 @@ class AgentController {
       logger.logAgentStep('4-LLM', 'Calling LLM provider');
       this._broadcast('agent_progress', { step: 'planning', status: 'active', sessionId });
 
-      const { response: llmResponse, provider: usedProvider } = await registry.generateWithFallback(
+      const { response: llmResponse, provider: usedProvider, usage } = await registry.generateWithFallback(
         prompt, context, provider
       );
+
+      // Update metrics with provider-reported token count if available
+      if (usage && usage.providerReported) {
+        metrics.totalTokens = usage.promptTokens;
+        metrics.messageTokens = usage.promptTokens - (metrics.summaryTokens || 0);
+        metrics.providerReported = true;
+        metrics.estimatedTokens = metrics.totalTokens;
+      }
+
       this._broadcast('agent_progress', { step: 'planning', status: 'complete', sessionId });
+      // ... rest of code ...
 
       // Step 6: Parse and write files
       logger.logAgentStep('5-CodeGen', 'Processing LLM response');

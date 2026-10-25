@@ -50,7 +50,7 @@ export class ClaudeProvider extends BaseLLMProvider {
     messages.push({ role: 'user', content: prompt });
 
     const startTime = Date.now();
-    const promptTokens = Math.ceil(prompt.split(/\s+/).length * 1.3);
+    const estimatedPromptTokens = Math.ceil(prompt.split(/\s+/).length * 1.3);
 
     try {
       const response = await client.messages.create({
@@ -67,10 +67,19 @@ export class ClaudeProvider extends BaseLLMProvider {
         .join('');
 
       const durationMs = Date.now() - startTime;
+      const reportedPromptTokens = response.usage?.input_tokens || estimatedPromptTokens;
       const responseTokens = response.usage?.output_tokens || Math.ceil(content.split(/\s+/).length * 1.3);
-      logger.logLLMCall('claude', response.usage?.input_tokens || promptTokens, responseTokens, durationMs);
+      logger.logLLMCall('claude', reportedPromptTokens, responseTokens, durationMs);
 
-      return content.trim();
+      return {
+        text: content.trim(),
+        usage: {
+          promptTokens: reportedPromptTokens,
+          completionTokens: responseTokens,
+          totalTokens: reportedPromptTokens + responseTokens,
+          providerReported: !!response.usage?.input_tokens,
+        },
+      };
     } catch (error) {
       logger.error('Claude', `API error: ${error.message}`);
       throw error;

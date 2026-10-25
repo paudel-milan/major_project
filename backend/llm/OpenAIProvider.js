@@ -89,10 +89,19 @@ export class OpenAIProvider extends BaseLLMProvider {
 
       const content = completion.choices[0]?.message?.content || '';
       const durationMs = Date.now() - startTime;
+      const reportedPromptTokens = completion.usage?.prompt_tokens || promptTokens;
       const responseTokens = completion.usage?.completion_tokens || Math.ceil(content.split(/\s+/).length * 1.3);
-      logger.logLLMCall('openai', completion.usage?.prompt_tokens || promptTokens, responseTokens, durationMs);
+      logger.logLLMCall('openai', reportedPromptTokens, responseTokens, durationMs);
 
-      return content.trim();
+      return {
+        text: content.trim(),
+        usage: {
+          promptTokens: reportedPromptTokens,
+          completionTokens: responseTokens,
+          totalTokens: reportedPromptTokens + responseTokens,
+          providerReported: !!completion.usage?.prompt_tokens,
+        },
+      };
     } catch (error) {
       logger.error('OpenAI', `API error: ${error.message}`);
       throw error;

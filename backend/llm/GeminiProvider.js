@@ -57,7 +57,7 @@ export class GeminiProvider extends BaseLLMProvider {
     }));
 
     const startTime = Date.now();
-    const promptTokens = Math.ceil(prompt.split(/\s+/).length * 1.3);
+    const estimatedPromptTokens = Math.ceil(prompt.split(/\s+/).length * 1.3);
 
     try {
       const chat = model.startChat({ history });
@@ -65,10 +65,19 @@ export class GeminiProvider extends BaseLLMProvider {
       const responseText = result.response.text();
 
       const durationMs = Date.now() - startTime;
-      const responseTokens = Math.ceil(responseText.split(/\s+/).length * 1.3);
-      logger.logLLMCall('gemini', promptTokens, responseTokens, durationMs);
+      const reportedPromptTokens = result.response.usageMetadata?.promptTokenCount || estimatedPromptTokens;
+      const responseTokens = result.response.usageMetadata?.candidatesTokenCount || Math.ceil(responseText.split(/\s+/).length * 1.3);
+      logger.logLLMCall('gemini', reportedPromptTokens, responseTokens, durationMs);
 
-      return responseText.trim();
+      return {
+        text: responseText.trim(),
+        usage: {
+          promptTokens: reportedPromptTokens,
+          completionTokens: responseTokens,
+          totalTokens: reportedPromptTokens + responseTokens,
+          providerReported: !!result.response.usageMetadata?.promptTokenCount,
+        },
+      };
     } catch (error) {
       logger.error('Gemini', `API error: ${error.message}`);
       throw error;

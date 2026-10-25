@@ -45,6 +45,19 @@ export interface ContextMetrics {
   thresholdHit?: boolean;
   summaryContent?: string;
   turnCount?: number;
+  // Per-category token breakdown (estimated where exact attribution unavailable)
+  categoryBreakdown?: {
+    systemPrompt?: number;
+    conversationHistory?: number;
+    summaryMemory?: number;
+    userPrompt?: number;
+    codeContext?: number;
+    toolDefinitions?: number;
+    other?: number;
+  };
+  // Provider-reported vs estimated
+  providerReported?: boolean;
+  estimatedTokens?: number;
 }
 
 export interface AgentResponse {

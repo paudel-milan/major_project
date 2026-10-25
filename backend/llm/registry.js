@@ -103,8 +103,11 @@ class ProviderRegistry {
 
       try {
         logger.info('Registry', `Attempting generation with ${providerName}`);
-        const response = await provider.generateResponse(prompt, context);
-        return { response, provider: providerName };
+        const result = await provider.generateResponse(prompt, context);
+        // Handle both old (string) and new ({text, usage}) return formats
+        const response = typeof result === 'string' ? result : result.text;
+        const usage = typeof result === 'string' ? null : result.usage;
+        return { response, provider: providerName, usage };
       } catch (error) {
         logger.warn('Registry', `Provider ${providerName} failed: ${error.message}`);
         continue;

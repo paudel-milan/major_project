@@ -40,16 +40,20 @@ class ContextBuilder {
     const existingSummary = conversationBuffer.getSummary(sessionId);
     const turnCount = conversationBuffer.getTurnCount(sessionId);
 
-    // Capture original token count before any compression
-    const previousTokens = tokenMonitor.estimateMessagesTokens(messages);
+    // Capture original token count before any compression (messages + system prompt estimate)
+    const previousTokens = tokenMonitor.estimateMessagesTokens(messages) + tokenMonitor.estimateTokens(this._buildSystemPrompt(projectContext));
 
     // Check if we need to compress
     let processedMessages = messages;
     let currentSummary = existingSummary;
     let wasCompressed = false;
 
+    // Estimate full context including system prompt for limit checking
+    const systemPromptTokensEstimate = tokenMonitor.estimateTokens(this._buildSystemPrompt(projectContext));
+    const fullContextTokens = tokenMonitor.estimateMessagesTokens(messages) + systemPromptTokensEstimate + tokenMonitor.estimateTokens(existingSummary || '');
+
     const shouldCompress = tokenMonitor.needsSummarization(turnCount) ||
-      tokenMonitor.isOverLimit(messages);
+      fullContextTokens > tokenMonitor.maxTokens;
 
     if (shouldCompress && messages.length >= 4) {
       logger.info('ContextBuilder', `Compressing context for session ${sessionId} (${messages.length} messages, turn ${turnCount})`);
@@ -80,12 +84,26 @@ class ContextBuilder {
     const contextHit = messages.length > 1 || !!currentSummary;
     const thresholdHit = !!shouldCompress;
 
-    // Get metrics for logging
+    // Count tokens per category using real tokenizer
+    const systemPromptTokens = tokenMonitor.estimateTokens(systemPrompt);
+    const summaryTokenCount = tokenMonitor.estimateTokens(currentSummary || '');
+    const conversationTokens = tokenMonitor.estimateMessagesTokens(processedMessages);
+    // The user prompt is part of processedMessages; estimate separately if present
+    const userPromptTokens = tokenMonitor.estimateTokens(userMessage);
+
+    // Get metrics for logging (full assembled context)
     const rawMetrics = tokenMonitor.getMetrics(processedMessages, currentSummary);
-    logger.logContextSize(sessionId, processedMessages.length, rawMetrics.totalTokens, !!currentSummary);
+    // Override total to include system prompt
+    const totalTokens = systemPromptTokens + conversationTokens + summaryTokenCount;
+    logger.logContextSize(sessionId, processedMessages.length, totalTokens, !!currentSummary);
 
     const metrics = {
-      ...rawMetrics,
+      messageTokens: conversationTokens,
+      summaryTokens: summaryTokenCount,
+      totalTokens,
+      maxTokens: tokenMonitor.maxTokens,
+      utilization: ((totalTokens / tokenMonitor.maxTokens) * 100).toFixed(1) + '%',
+      isOverLimit: totalTokens > tokenMonitor.maxTokens,
       contextHit,
       thresholdHit,
       summaryContent: currentSummary || '',
@@ -93,6 +111,17 @@ class ContextBuilder {
       strategy: this._strategy.name,
       previousTokens,
       wasCompressed,
+      categoryBreakdown: {
+        systemPrompt: systemPromptTokens,
+        conversationHistory: conversationTokens,
+        summaryMemory: summaryTokenCount,
+        userPrompt: userPromptTokens,
+        codeContext: 0,
+        toolDefinitions: 0,
+        other: 0,
+      },
+      providerReported: false,
+      estimatedTokens: totalTokens,
     };
 
     return {

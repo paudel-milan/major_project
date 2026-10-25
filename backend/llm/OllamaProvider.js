@@ -65,7 +65,15 @@ export class OllamaProvider extends BaseLLMProvider {
       const responseTokens = data.eval_count ?? countTokens(assistantMessage);
       logger.logLLMCall('ollama', promptTokens, responseTokens, durationMs);
 
-      return assistantMessage.trim();
+      return {
+        text: assistantMessage.trim(),
+        usage: {
+          promptTokens,
+          completionTokens: responseTokens,
+          totalTokens: promptTokens + responseTokens,
+          providerReported: data.prompt_eval_count != null,
+        },
+      };
     } catch (error) {
       if (error.cause?.code === 'ECONNREFUSED' || error.message?.includes('fetch failed')) {
         throw new Error(
