@@ -53,8 +53,9 @@ class ContextBuilder {
     const systemPromptTokensEstimate = tokenMonitor.estimateTokens(this._buildSystemPrompt(projectContext));
     const fullContextTokens = tokenMonitor.estimateMessagesTokens(messages) + systemPromptTokensEstimate + tokenMonitor.estimateTokens(existingSummary || '');
 
+    const thresholdTokens = Math.round(tokenMonitor.maxTokens * 0.7);
     const shouldCompress = tokenMonitor.needsSummarization(turnCount) ||
-      fullContextTokens > tokenMonitor.maxTokens;
+      fullContextTokens >= thresholdTokens;
 
     // Record context assembly start event
     contextEventLog.record(sessionId, {
@@ -67,7 +68,6 @@ class ContextBuilder {
     });
 
     // Determine threshold crossing
-    const thresholdTokens = Math.round(tokenMonitor.maxTokens * 0.7);
     if (fullContextTokens >= thresholdTokens && fullContextTokens < tokenMonitor.maxTokens) {
       contextEventLog.record(sessionId, {
         type: 'APPROACHING_THRESHOLD',
@@ -82,78 +82,111 @@ class ContextBuilder {
     if (shouldCompress && messages.length >= 4) {
       logger.info('ContextBuilder', `Compressing context for session ${sessionId} (${messages.length} messages, turn ${turnCount})`);
 
-      const summarizationTokensBefore = fullContextTokens;
+      let compressionAttempts = 0;
+      const MAX_COMPRESSION_ATTEMPTS = 3;
 
-      contextEventLog.record(sessionId, {
-        type: 'SUMMARIZATION_REQUIRED',
-        status: 'warning',
-        trigger: tokenMonitor.needsSummarization(turnCount) ? 'Turn threshold reached' : 'Token limit exceeded',
-        tokensBefore: fullContextTokens,
-        tokensAfter: null,
-        details: { turnCount, threshold: tokenMonitor.summaryThreshold, maxTokens: tokenMonitor.maxTokens },
-      });
+      while (compressionAttempts < MAX_COMPRESSION_ATTEMPTS) {
+        compressionAttempts++;
+        const summarizationTokensBefore = fullContextTokens;
 
-      contextEventLog.record(sessionId, {
-        type: 'SUMMARIZATION_IN_PROGRESS',
-        status: 'info',
-        trigger: 'Recursive summarization started',
-        tokensBefore: fullContextTokens,
-        tokensAfter: null,
-      });
-
-      const summarizationStart = Date.now();
-      const result = await this._strategy.process(messages, {
-        maxTokens: tokenMonitor.maxTokens,
-        existingSummary,
-        llmCall,
-      });
-      const summarizationDurationMs = Date.now() - summarizationStart;
-
-      processedMessages = result.messages;
-      currentSummary = result.summary;
-      wasCompressed = result.wasCompressed;
-
-      if (wasCompressed) {
-        // Update the buffer with compressed state
-        conversationBuffer.setMessages(sessionId, processedMessages);
-        conversationBuffer.setSummary(sessionId, currentSummary);
-        conversationBuffer.resetTurnCount(sessionId);
-
-        // Recount after compression
-        const systemPromptTokensEst = tokenMonitor.estimateTokens(this._buildSystemPrompt(projectContext));
-        const afterTokens = tokenMonitor.estimateMessagesTokens(processedMessages) + tokenMonitor.estimateTokens(currentSummary || '') + systemPromptTokensEst;
-
-        contextEventLog.record(sessionId, {
-          type: 'SUMMARIZATION_COMPLETED',
-          status: 'success',
-          trigger: 'Recursive summarization finished',
-          tokensBefore: summarizationTokensBefore,
-          tokensAfter: afterTokens,
-          durationMs: summarizationDurationMs,
-          details: { messagesBefore: messages.length, messagesAfter: processedMessages.length },
-        });
-
-        contextEventLog.record(sessionId, {
-          type: 'CONTEXT_REBUILT',
-          status: 'success',
-          trigger: 'Context rebuilt after summarization',
-          tokensBefore: summarizationTokensBefore,
-          tokensAfter: afterTokens,
-          details: { strategy: this._strategy.name },
-        });
-
-        // Check if still over budget
-        if (afterTokens > tokenMonitor.maxTokens) {
+        if (compressionAttempts === 1) {
           contextEventLog.record(sessionId, {
-            type: 'BUDGET_EXCEEDED',
-            status: 'error',
-            trigger: `After compression: ${afterTokens} > ${tokenMonitor.maxTokens}`,
-            tokensBefore: afterTokens,
-            tokensAfter: afterTokens,
-            details: { maxTokens: tokenMonitor.maxTokens },
+            type: 'SUMMARIZATION_REQUIRED',
+            status: 'warning',
+            trigger: tokenMonitor.needsSummarization(turnCount) ? 'Turn threshold reached' : 'Token threshold exceeded',
+            tokensBefore: fullContextTokens,
+            tokensAfter: null,
+            details: { turnCount, threshold: tokenMonitor.summaryThreshold, maxTokens: tokenMonitor.maxTokens, attempt: compressionAttempts },
           });
         }
+
+        contextEventLog.record(sessionId, {
+          type: 'SUMMARIZATION_IN_PROGRESS',
+          status: 'info',
+          trigger: `Recursive summarization started (attempt ${compressionAttempts})`,
+          tokensBefore: fullContextTokens,
+          tokensAfter: null,
+        });
+
+        const summarizationStart = Date.now();
+        const result = await this._strategy.process(processedMessages, {
+          maxTokens: tokenMonitor.maxTokens,
+          existingSummary: currentSummary,
+          llmCall,
+        });
+        const summarizationDurationMs = Date.now() - summarizationStart;
+
+        processedMessages = result.messages;
+        currentSummary = result.summary;
+        wasCompressed = result.wasCompressed;
+
+        if (wasCompressed) {
+          // Update the buffer with compressed state
+          conversationBuffer.setMessages(sessionId, processedMessages);
+          conversationBuffer.setSummary(sessionId, currentSummary);
+          conversationBuffer.resetTurnCount(sessionId);
+
+          // Recount after compression
+          const systemPromptTokensEst = tokenMonitor.estimateTokens(this._buildSystemPrompt(projectContext));
+          const afterTokens = tokenMonitor.estimateMessagesTokens(processedMessages) + tokenMonitor.estimateTokens(currentSummary || '') + systemPromptTokensEst;
+
+          contextEventLog.record(sessionId, {
+            type: 'SUMMARIZATION_COMPLETED',
+            status: 'success',
+            trigger: 'Recursive summarization finished',
+            tokensBefore: summarizationTokensBefore,
+            tokensAfter: afterTokens,
+            durationMs: summarizationDurationMs,
+            details: { messagesBefore: messages.length, messagesAfter: processedMessages.length, attempt: compressionAttempts },
+          });
+
+          contextEventLog.record(sessionId, {
+            type: 'CONTEXT_REBUILT',
+            status: 'success',
+            trigger: 'Context rebuilt after summarization',
+            tokensBefore: summarizationTokensBefore,
+            tokensAfter: afterTokens,
+            details: { strategy: this._strategy.name },
+          });
+
+          // Check if still over threshold
+          if (afterTokens < thresholdTokens) {
+            break; // Compression sufficient
+          } else if (compressionAttempts < MAX_COMPRESSION_ATTEMPTS) {
+            contextEventLog.record(sessionId, {
+              type: 'SUMMARIZATION_REQUIRED',
+              status: 'warning',
+              trigger: `Still over threshold after attempt ${compressionAttempts}: ${afterTokens} >= ${thresholdTokens}`,
+              tokensBefore: afterTokens,
+              tokensAfter: null,
+              details: { attempt: compressionAttempts + 1, maxAttempts: MAX_COMPRESSION_ATTEMPTS },
+            });
+            fullContextTokens = afterTokens;
+            continue;
+          } else {
+            contextEventLog.record(sessionId, {
+              type: 'BUDGET_EXCEEDED',
+              status: 'error',
+              trigger: `After ${MAX_COMPRESSION_ATTEMPTS} compression attempts: ${afterTokens} >= ${thresholdTokens}`,
+              tokensBefore: afterTokens,
+              tokensAfter: afterTokens,
+              details: { maxTokens: tokenMonitor.maxTokens, attempts: MAX_COMPRESSION_ATTEMPTS },
+            });
+          }
+        } else {
+          break; // No compression happened
+        }
       }
+    } else if (shouldCompress && messages.length < 4) {
+      // Too few messages to summarize — record event
+      contextEventLog.record(sessionId, {
+        type: 'BUDGET_EXCEEDED',
+        status: 'warning',
+        trigger: `Context at ${fullContextTokens} tokens exceeds threshold but only ${messages.length} messages (need >= 4)`,
+        tokensBefore: fullContextTokens,
+        tokensAfter: fullContextTokens,
+        details: { messageCount: messages.length, threshold: thresholdTokens },
+      });
     }
 
     // Build the final prompt
@@ -166,9 +199,19 @@ class ContextBuilder {
 
     // Count tokens per category using real tokenizer
     const systemPromptTokens = tokenMonitor.estimateTokens(systemPrompt);
+    // Calculate code context tokens (project files portion)
+    let codeContextTokens = 0;
+    if (projectContext?.existingFiles) {
+      let codePrompt = '\n\nCURRENT PROJECT FILES:\n';
+      for (const [filename, content] of Object.entries(projectContext.existingFiles)) {
+        const truncated = content.length > 300 ? content.slice(0, 300) + '\n// ... (truncated)' : content;
+        codePrompt += `\n--- ${filename} ---\n${truncated}\n`;
+      }
+      codeContextTokens = tokenMonitor.estimateTokens(codePrompt);
+    }
+    const baseSystemTokens = systemPromptTokens - codeContextTokens;
     const summaryTokenCount = tokenMonitor.estimateTokens(currentSummary || '');
     const conversationTokens = tokenMonitor.estimateMessagesTokens(processedMessages);
-    // The user prompt is part of processedMessages; estimate separately if present
     const userPromptTokens = tokenMonitor.estimateTokens(userMessage);
 
     // Get metrics for logging (full assembled context)
@@ -192,11 +235,11 @@ class ContextBuilder {
       previousTokens,
       wasCompressed,
       categoryBreakdown: {
-        systemPrompt: systemPromptTokens,
+        systemPrompt: baseSystemTokens,
         conversationHistory: conversationTokens,
         summaryMemory: summaryTokenCount,
         userPrompt: userPromptTokens,
-        codeContext: 0,
+        codeContext: codeContextTokens,
         toolDefinitions: 0,
         other: 0,
       },
