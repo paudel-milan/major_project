@@ -9,10 +9,10 @@
     "dev": "node --watch server.js"
   },
   "dependencies": {
-    "@dqbd/tiktoken": "^1.0.22",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.1",
+    "js-tiktoken": "^1.0.21",
     "uuid": "^11.0.3",
     "ws": "^8.18.0"
   },

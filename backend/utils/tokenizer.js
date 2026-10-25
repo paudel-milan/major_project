@@ -1,10 +1,9 @@
 /**
- * Tokenizer — real subword token counting using tiktoken (cl100k_base).
+ * Tokenizer — real subword token counting using js-tiktoken (cl100k_base).
  * Falls back to a word heuristic if the encoder cannot be loaded.
  */
 
-import tiktoken from '@dqbd/tiktoken';
-const { getEncoding, encodingForModel } = tiktoken;
+import { getEncoding, encodingForModel } from 'js-tiktoken';
 
 let _encoder = null;
 let _loadError = null;
@@ -23,7 +22,7 @@ function _ensureEncoder() {
 
 /**
  * Count tokens for a string using cl100k_base (OpenAI-compatible).
- * Falls back to ~1.3 tokens/word if tiktoken is unavailable.
+ * Falls back to ~1.3 tokens/word if js-tiktoken is unavailable.
  * @param {string} text
  * @returns {number}
  */
