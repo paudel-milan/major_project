@@ -125,7 +125,7 @@ CLAUDE_MODEL=claude-sonnet-4-20250514
 
 # Context management
 CONTEXT_STRATEGY=selective_summarization   # recursive_summarization | sliding_window | selective_summarization
-CONTEXT_MAX_TOKENS=1000
+CONTEXT_MAX_TOKENS=2000
 CONTEXT_SUMMARY_THRESHOLD=6
 ```
 
