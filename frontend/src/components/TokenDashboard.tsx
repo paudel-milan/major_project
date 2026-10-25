@@ -141,8 +141,10 @@ export default function TokenDashboard({
   const utilizationPct = Math.min(100, utilizationRaw);
 
   const previousTokens = contextMetrics?.previousTokens || currentTotalTokens;
-  const tokensSaved = Math.max(0, previousTokens - currentTotalTokens);
-  const savingsPct = previousTokens > 0 ? Math.round((tokensSaved / previousTokens) * 100) : 0;
+  const lastTokensSaved = contextMetrics?.lastTokensSaved || 0;
+  const cumulativeTokensSaved = contextMetrics?.cumulativeTokensSaved || 0;
+  const tokensSaved = contextMetrics?.wasCompressed ? lastTokensSaved : 0;
+  const savingsPct = previousTokens > 0 && tokensSaved > 0 ? Math.round((tokensSaved / previousTokens) * 100) : 0;
 
   const totalEstimated = (metricsData?.totalTokensEstimated || 0) + currentTotalTokens;
   const avgTokensPerReq = metricsData?.totalRequests
@@ -305,10 +307,12 @@ export default function TokenDashboard({
                         <span className="text-emerald-400">🌿</span>
                       </div>
                       <div className="text-2xl font-black font-mono text-emerald-400">
-                        {tokensSaved > 0 ? `+${formatTokens(tokensSaved)}` : '0'}
+                        {cumulativeTokensSaved > 0 ? `+${formatTokens(cumulativeTokensSaved)}` : '0'}
                       </div>
                       <div className="text-[11px] text-[var(--text-muted)] mt-1">
-                        {savingsPct > 0 ? `${savingsPct}% reduction via summarization` : 'No compression required yet'}
+                        {contextMetrics?.wasCompressed
+                          ? `Last: ${formatTokens(lastTokensSaved)} saved (${savingsPct}% reduction). Cumulative: ${formatTokens(cumulativeTokensSaved)}`
+                          : 'No compression required yet'}
                       </div>
                     </div>
 
@@ -318,11 +322,11 @@ export default function TokenDashboard({
                         <span className="text-blue-400">🎯</span>
                       </div>
                       <div className="text-2xl font-black font-mono text-blue-400 flex items-center gap-2">
-                        {contextState || (contextMetrics?.contextHit ? 'HIT' : 'INITIAL')}
+                        {contextMetrics?.wasCompressed ? 'COMPRESSED' : (contextState || (contextMetrics?.contextHit ? 'HIT' : 'INITIAL'))}
                       </div>
                       <div className="text-[11px] text-[var(--text-muted)] mt-1">
-                        {contextState === 'SUMMARIZATION_COMPLETED'
-                          ? 'Context was compressed'
+                        {contextMetrics?.wasCompressed
+                          ? `Saved ${formatTokens(lastTokensSaved)} tokens via summarization`
                           : contextState === 'APPROACHING_THRESHOLD'
                             ? 'Approaching compression threshold'
                             : contextMetrics?.contextHit

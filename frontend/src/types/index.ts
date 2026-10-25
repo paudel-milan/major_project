@@ -46,6 +46,8 @@ export interface ContextMetrics {
   summaryContent?: string;
   turnCount?: number;
   sessionId?: string;
+  cumulativeTokensSaved?: number;
+  lastTokensSaved?: number;
   // Per-category token breakdown (estimated where exact attribution unavailable)
   categoryBreakdown?: {
     systemPrompt?: number;

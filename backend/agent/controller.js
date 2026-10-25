@@ -16,6 +16,9 @@ import logger from '../utils/logger.js';
 
 const MAX_REPAIR_ATTEMPTS = 3;
 
+// Track cumulative tokens saved per session
+const _cumulativeSaved = new Map();
+
 class AgentController {
   constructor() {
     this._wsClients = new Set();
@@ -89,10 +92,14 @@ class AgentController {
 
       if (wasCompressed) {
         this._broadcast('context_compressed', { sessionId, metrics });
+        // Track cumulative tokens saved
+        const saved = Math.max(0, previousTokens - metrics.totalTokens);
+        const prev = _cumulativeSaved.get(sessionId) || 0;
+        _cumulativeSaved.set(sessionId, prev + saved);
       }
       this._broadcast('agent_progress', {
         step: 'context', status: 'complete', sessionId,
-        contextMetrics: { ...metrics, previousTokens, wasCompressed, strategy: contextBuilder.getStrategyName() },
+        contextMetrics: { ...metrics, previousTokens, wasCompressed, strategy: contextBuilder.getStrategyName(), cumulativeTokensSaved: _cumulativeSaved.get(sessionId) || 0, lastTokensSaved: wasCompressed ? Math.max(0, previousTokens - metrics.totalTokens) : 0 },
       });
 
       // Step 5: Call LLM
@@ -104,11 +111,12 @@ class AgentController {
       );
 
       // Update metrics with provider-reported token count if available
+      // Store as separate field, don't override estimated totalTokens (used for context window)
       if (usage && usage.providerReported) {
-        metrics.totalTokens = usage.promptTokens;
-        metrics.messageTokens = usage.promptTokens - (metrics.summaryTokens || 0);
+        metrics.providerPromptTokens = usage.promptTokens;
+        metrics.providerCompletionTokens = usage.completionTokens;
+        metrics.providerTotalTokens = usage.totalTokens;
         metrics.providerReported = true;
-        metrics.estimatedTokens = metrics.totalTokens;
       }
 
       this._broadcast('agent_progress', { step: 'planning', status: 'complete', sessionId });
@@ -232,7 +240,7 @@ class AgentController {
         buildSuccess: buildResult.success,
         duration: totalDuration,
         repairAttempts: repairAttempt,
-        contextMetrics: { ...metrics, previousTokens, wasCompressed, strategy: contextBuilder.getStrategyName(), sessionId },
+        contextMetrics: { ...metrics, previousTokens, wasCompressed, strategy: contextBuilder.getStrategyName(), sessionId, cumulativeTokensSaved: _cumulativeSaved.get(sessionId) || 0, lastTokensSaved: wasCompressed ? Math.max(0, previousTokens - metrics.totalTokens) : 0 },
       };
     } catch (error) {
       logger.error('Agent', `Agent loop failed: ${error.message}`);
