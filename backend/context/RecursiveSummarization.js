@@ -27,7 +27,7 @@ export class RecursiveSummarization extends ContextStrategy {
     const { maxTokens = 4000, existingSummary = '', llmCall } = options;
 
     // If fewer than 4 messages (2 exchanges), nothing to summarize
-    if (messages.length < 4) {
+    if (messages.length < 3) {
       return {
         messages,
         summary: existingSummary,
@@ -36,7 +36,7 @@ export class RecursiveSummarization extends ContextStrategy {
     }
 
     // Keep the last 4 messages (2 complete exchanges) intact
-    const recentCount = 4;
+    const recentCount = 2;
     const messagesToSummarize = messages.slice(0, -recentCount);
     const recentMessages = messages.slice(-recentCount);
 

@@ -14,7 +14,7 @@ import projectManager from '../builder/ProjectManager.js';
 import buildEngine from '../builder/BuildEngine.js';
 import logger from '../utils/logger.js';
 
-const MAX_REPAIR_ATTEMPTS = 3;
+const MAX_REPAIR_ATTEMPTS = 10;
 
 // Track cumulative tokens saved per session
 const _cumulativeSaved = new Map();

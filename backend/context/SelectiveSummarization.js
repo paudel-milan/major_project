@@ -39,7 +39,7 @@ export class SelectiveSummarization extends ContextStrategy {
     const { maxTokens = 4000, existingSummary = '', llmCall } = options;
 
     // Minimum messages to trigger summarization
-    if (messages.length < 4) {
+    if (messages.length < 3) {
       return {
         messages,
         summary: existingSummary,
@@ -48,7 +48,7 @@ export class SelectiveSummarization extends ContextStrategy {
     }
 
     // Keep the most recent 2 exchanges (4 messages) intact for immediate context
-    const recentCount = 4;
+    const recentCount = 2;
     const messagesToSummarize = messages.slice(0, -recentCount);
     const recentMessages = messages.slice(-recentCount);
 

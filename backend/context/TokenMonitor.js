@@ -8,8 +8,17 @@ import { countTokens, countMessagesTokens } from '../utils/tokenizer.js';
 
 class TokenMonitor {
   constructor() {
-    this.maxTokens = parseInt(process.env.CONTEXT_MAX_TOKENS || '4000', 10);
+    this.maxTokens = parseInt(process.env.CONTEXT_MAX_TOKENS || '1500', 10);
     this.summaryThreshold = parseInt(process.env.CONTEXT_SUMMARY_THRESHOLD || '6', 10);
+    this.triggerThresholdPercent = parseInt(process.env.CONTEXT_TRIGGER_THRESHOLD_PERCENT || '70', 10);
+  }
+
+  get triggerThresholdPercentValue() {
+    return this.triggerThresholdPercent;
+  }
+
+  get thresholdTokens() {
+    return Math.round(this.maxTokens * (this.triggerThresholdPercent / 100));
   }
 
   /**

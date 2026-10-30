@@ -143,14 +143,14 @@ export default function VoiceInput({ onTranscript, disabled }: Props) {
 
       {/* Interim text indicator */}
       {isListening && interimText && (
-        <span className="text-[10px] text-red-400/70 mr-2 max-w-[120px] truncate">
+        <span className="text-[10px] text-[var(--error)]/70 mr-2 max-w-[120px] truncate font-mono">
           {interimText}
         </span>
       )}
 
       {/* Processing indicator */}
       {isProcessing && (
-        <span className="text-[10px] text-purple-400 mr-2">Processing...</span>
+        <span className="text-[10px] text-[var(--accent)] mr-2 font-mono">processing...</span>
       )}
 
       {/* Mic button */}
@@ -160,20 +160,20 @@ export default function VoiceInput({ onTranscript, disabled }: Props) {
         title={isListening ? 'Stop recording' : 'Voice input'}
         className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
           isListening
-            ? 'bg-red-500 text-white voice-recording hover:bg-red-600'
+            ? 'bg-[var(--error)] text-white voice-recording'
             : isProcessing
-              ? 'bg-purple-500/20 text-purple-400 cursor-wait'
-              : 'bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/10'
+              ? 'bg-[var(--accent)]/15 text-[var(--accent)] cursor-wait'
+              : 'bg-white/5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-white/8'
         }`}
       >
         {isListening ? (
           /* Stop icon */
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="6" width="12" height="12" rx="2" />
           </svg>
         ) : (
           /* Mic icon */
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
             <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
             <line x1="12" y1="19" x2="12" y2="23" />

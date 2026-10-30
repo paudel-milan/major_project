@@ -20,6 +20,7 @@ import buildEngine from './builder/BuildEngine.js';
 import conversationBuffer from './context/ConversationBuffer.js';
 import contextBuilder from './context/ContextBuilder.js';
 import contextEventLog from './context/ContextEventLog.js';
+import tokenMonitor from './context/TokenMonitor.js';
 import logger from './utils/logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -128,10 +129,10 @@ app.get('/api/context-events/:sessionId', (req, res) => {
  */
 app.get('/api/context-budget', (req, res) => {
   res.json({
-    maxTokens: parseInt(process.env.CONTEXT_MAX_TOKENS || '32000', 10),
-    summaryThreshold: parseInt(process.env.CONTEXT_SUMMARY_THRESHOLD || '6', 10),
-    thresholdPercent: 70,
-    thresholdTokens: Math.round(parseInt(process.env.CONTEXT_MAX_TOKENS || '32000', 10) * 0.7),
+    maxTokens: tokenMonitor.maxTokens,
+    summaryThreshold: tokenMonitor.summaryThreshold,
+    thresholdPercent: tokenMonitor.triggerThresholdPercent,
+    thresholdTokens: tokenMonitor.thresholdTokens,
   });
 });
 app.get('/api/session/:id', (req, res) => {

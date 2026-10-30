@@ -53,7 +53,7 @@ class ContextBuilder {
     const systemPromptTokensEstimate = tokenMonitor.estimateTokens(this._buildSystemPrompt(projectContext));
     const fullContextTokens = tokenMonitor.estimateMessagesTokens(messages) + systemPromptTokensEstimate + tokenMonitor.estimateTokens(existingSummary || '');
 
-    const thresholdTokens = Math.round(tokenMonitor.maxTokens * 0.7);
+    const thresholdTokens = tokenMonitor.thresholdTokens;
     const shouldCompress = tokenMonitor.needsSummarization(turnCount) ||
       fullContextTokens >= thresholdTokens;
 
@@ -79,7 +79,7 @@ class ContextBuilder {
       });
     }
 
-    if (shouldCompress && messages.length >= 4) {
+    if (shouldCompress && messages.length >= 3) {
       logger.info('ContextBuilder', `Compressing context for session ${sessionId} (${messages.length} messages, turn ${turnCount})`);
 
       let compressionAttempts = 0;
@@ -111,6 +111,7 @@ class ContextBuilder {
         const summarizationStart = Date.now();
         const result = await this._strategy.process(processedMessages, {
           maxTokens: tokenMonitor.maxTokens,
+          thresholdTokens: tokenMonitor.thresholdTokens,
           existingSummary: currentSummary,
           llmCall,
         });
@@ -177,12 +178,12 @@ class ContextBuilder {
           break; // No compression happened
         }
       }
-    } else if (shouldCompress && messages.length < 4) {
+    } else if (shouldCompress && messages.length < 3) {
       // Too few messages to summarize — record event
       contextEventLog.record(sessionId, {
         type: 'BUDGET_EXCEEDED',
         status: 'warning',
-        trigger: `Context at ${fullContextTokens} tokens exceeds threshold but only ${messages.length} messages (need >= 4)`,
+        trigger: `Context at ${fullContextTokens} tokens exceeds threshold but only ${messages.length} messages (need >= 3)`,
         tokensBefore: fullContextTokens,
         tokensAfter: fullContextTokens,
         details: { messageCount: messages.length, threshold: thresholdTokens },

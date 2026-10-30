@@ -2,29 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Custom Design Tokens ─── */
+/* ─── MonkeyType-Inspired Design Tokens ─── */
 :root {
-  --bg-primary: #06080d;
-  --bg-secondary: #0c1018;
-  --bg-tertiary: #111827;
-  --bg-surface: #151d2e;
+  --bg-primary: #323437;
+  --bg-secondary: #2c2e31;
+  --bg-tertiary: #232427;
+  --bg-surface: #2c2e31;
   --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-active: rgba(139, 92, 246, 0.4);
-  --accent: #8b5cf6;
-  --accent-glow: rgba(139, 92, 246, 0.15);
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --success: #34d399;
-  --error: #f87171;
-  --warning: #fbbf24;
+  --border-active: rgba(226, 183, 20, 0.4);
+  --accent: #e2b714;
+  --accent-dim: #b89410;
+  --accent-glow: rgba(226, 183, 20, 0.12);
+  --accent-surface: rgba(226, 183, 20, 0.08);
+  --text-primary: #d1d0c5;
+  --text-secondary: #939393;
+  --text-muted: #646669;
+  --success: #7ec984;
+  --error: #ca4754;
+  --warning: #e2b714;
+  --info: #4a90d9;
 }
 
 /* ─── Global Styles ─── */
-@font-face {
-  font-family: 'Inter';
-  src: url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-}
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500;600;700&family=Lexend+Deca:wght@300;400;500;600;700&display=swap');
 
 * {
   margin: 0;
@@ -36,7 +36,7 @@ html, body, #root {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Lexend Deca', system-ui, -apple-system, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
@@ -45,8 +45,8 @@ html, body, #root {
 
 /* ─── Scrollbar Styling ─── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -54,23 +54,28 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 /* ─── Animations ─── */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes fadeInFast {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 8px var(--accent-glow); }
-  50% { box-shadow: 0 0 20px var(--accent-glow); }
+  0%, 100% { box-shadow: 0 0 6px var(--accent-glow); }
+  50% { box-shadow: 0 0 16px var(--accent-glow); }
 }
 
 @keyframes shimmer {
@@ -80,21 +85,30 @@ html, body, #root {
 
 @keyframes typing-dot {
   0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-  30% { opacity: 1; transform: translateY(-4px); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+
+@keyframes caret-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.3s ease-out forwards;
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+.animate-fade-in-fast {
+  animation: fadeInFast 0.15s ease-out forwards;
 }
 
 .animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: pulse-glow 2.5s ease-in-out infinite;
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.1), transparent);
+  background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 2s infinite;
 }
 
 /* ─── Typing dots ─── */
@@ -106,13 +120,13 @@ html, body, #root {
 
 /* ─── Voice Recording Pulse ─── */
 @keyframes voice-pulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(202, 71, 84, 0.3); }
+  50% { transform: scale(1.06); box-shadow: 0 0 0 6px rgba(202, 71, 84, 0); }
 }
 
 @keyframes voice-wave {
-  0%, 100% { height: 4px; }
-  50% { height: 16px; }
+  0%, 100% { height: 3px; }
+  50% { height: 14px; }
 }
 
 .voice-recording {
@@ -120,9 +134,9 @@ html, body, #root {
 }
 
 .voice-wave-bar {
-  width: 3px;
-  border-radius: 2px;
-  background: #ef4444;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--error);
   animation: voice-wave 0.8s ease-in-out infinite;
 }
 .voice-wave-bar:nth-child(1) { animation-delay: 0s; }
@@ -152,3 +166,18 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* ─── Caret blink (MonkeyType style) ─── */
+.caret-blink {
+  animation: caret-blink 1s step-end infinite;
+}
+
+/* ─── MonkeyType-style focus ring ─── */
+.mt-focus:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+
+/* ─── Mono text utility ─── */
+.font-mono-mt {
+  font-family: 'Roboto Mono', 'Consolas', monospace;
+}

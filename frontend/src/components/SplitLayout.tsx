@@ -63,13 +63,13 @@ export default function SplitLayout({
       {/* Resize handle */}
       <div
         onMouseDown={handleMouseDown}
-        className={`w-[3px] h-full shrink-0 cursor-col-resize group relative transition-colors ${
-          isDragging ? 'bg-purple-500/60' : 'bg-[var(--border-subtle)] hover:bg-purple-500/40'
+        className={`w-[2px] h-full shrink-0 cursor-col-resize group relative transition-colors duration-150 ${
+          isDragging ? 'bg-[var(--accent)]/50' : 'bg-[var(--border-subtle)] hover:bg-[var(--accent)]/30'
         }`}
       >
         {/* Visible drag indicator */}
-        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-8 rounded-full transition-all ${
-          isDragging ? 'bg-purple-400 opacity-100' : 'bg-white/20 opacity-0 group-hover:opacity-100'
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-8 rounded-full transition-all ${
+          isDragging ? 'bg-[var(--accent)] opacity-100' : 'bg-white/15 opacity-0 group-hover:opacity-100'
         }`} />
       </div>
 

@@ -146,7 +146,7 @@ export default function TokenDashboard({
 
   // ─── Current session context window (real token counts) ───
   const currentTotalTokens = contextMetrics?.totalTokens || 0;
-  const maxTokens = contextMetrics?.maxTokens || 4000;
+  const maxTokens = contextMetrics?.maxTokens || contextBudget?.maxTokens || 1500;
   const utilizationRaw = maxTokens > 0 ? (currentTotalTokens / maxTokens) * 100 : 0;
   const utilizationPct = Math.min(100, utilizationRaw);
 
@@ -434,7 +434,7 @@ export default function TokenDashboard({
                         title={`Conversation History: ${formatTokens(conversationTokens)} (${chatPct}%)`}
                       />
                       <div
-                        className="h-full bg-amber-500 transition-all duration-300"
+                        className="h-full bg-gray-500 transition-all duration-300"
                         style={{ width: `${codePct}%` }}
                         title={`Code/Project Context: ${formatTokens(codeContextTokens)} (${codePct}%)`}
                       />
@@ -476,11 +476,11 @@ export default function TokenDashboard({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white/[0.02] border border-amber-500/20">
-                        <div className="w-3 h-3 rounded-md bg-amber-500 shrink-0" />
+                      <div className="flex items-center gap-2 p-2.5 rounded-lg bg-white/[0.02] border border-gray-500/20">
+                        <div className="w-3 h-3 rounded-md bg-gray-500 shrink-0" />
                         <div>
                           <div className="text-[10px] text-[var(--text-muted)] font-medium">Code/Project Context</div>
-                          <div className="text-xs font-bold font-mono text-amber-300">
+                          <div className="text-xs font-bold font-mono text-gray-300">
                             {formatTokens(codeContextTokens)} ({codePct}%)
                           </div>
                         </div>
@@ -691,14 +691,13 @@ export default function TokenDashboard({
                   </h4>
                   <div className="h-48 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        data={[...contextEvents].reverse().map((e, i) => ({
-                          name: e.type.replace(/_/g, ' '),
-                          index: i + 1,
-                          before: e.tokensBefore ?? 0,
-                          after: e.tokensAfter ?? 0,
-                          saved: e.tokensSaved ?? 0,
-                        }))}
+                   <LineChart
+                         data={contextEvents.map((e, i) => ({
+                           name: e.type.replace(/_/g, ' '),
+                           index: i + 1,
+                           tokens: e.tokensAfter ?? e.tokensBefore ?? 0,
+                           saved: e.tokensSaved ?? 0,
+                         }))}
                         margin={{ top: 8, right: 10, bottom: 24, left: 36 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" stroke="white/10" vertical={false} />
@@ -715,7 +714,7 @@ export default function TokenDashboard({
                           tickLine={false}
                         />
                         <Tooltip
-                          formatter={(value, name) => [formatTokens(Number(value)), name === 'before' ? 'Before' : name === 'after' ? 'After' : 'Saved']}
+                          formatter={(value, name) => [formatTokens(Number(value)), name === 'tokens' ? 'Tokens' : 'Saved']}
                           labelFormatter={(label) => `Event #${label}`}
                           contentStyle={{
                             backgroundColor: 'var(--bg-secondary)',
@@ -724,26 +723,24 @@ export default function TokenDashboard({
                           }}
                         />
                         <ReferenceLine
-                          y={contextBudget ? contextBudget.thresholdTokens : 0}
+                          y={contextBudget ? contextBudget.thresholdTokens : (contextMetrics?.maxTokens || 1500) * 0.7}
                           stroke="red"
                           strokeDasharray="3 3"
-                          label={{ value: 'Threshold', position: 'top', fill: 'red', fontSize: 9 }}
+                          label={{ value: 'Threshold 70%', position: 'top', fill: 'red', fontSize: 9 }}
+                        />
+                        <ReferenceLine
+                          y={contextMetrics?.maxTokens || contextBudget?.maxTokens || 1500}
+                          stroke="#6b7280"
+                          strokeDasharray="4 4"
+                          label={{ value: 'Max', position: 'top', fill: '#6b7280', fontSize: 9 }}
                         />
                         <Line
                           type="monotone"
-                          dataKey="before"
-                          stroke="#f59e0b"
-                          strokeWidth="2"
-                          dot={{ fill: '#f59e0b', r: 3 }}
-                          name="before"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="after"
+                          dataKey="tokens"
                           stroke="#8b5cf6"
                           strokeWidth="2"
                           dot={{ fill: '#8b5cf6', r: 3 }}
-                          name="after"
+                          name="tokens"
                         />
                       </LineChart>
                     </ResponsiveContainer>

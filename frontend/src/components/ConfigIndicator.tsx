@@ -9,9 +9,9 @@ import type { ConfigInfo, ProviderInfo } from '../types';
 
 function getStrategyDisplayName(strategy: string): string {
   switch (strategy) {
-    case 'recursive_summarization': return 'Recursive Summarization';
-    case 'sliding_window': return 'Sliding Window';
-    case 'selective_summarization': return 'Selective Semantic (Custom)';
+    case 'recursive_summarization': return 'recursive summarization';
+    case 'sliding_window': return 'sliding window';
+    case 'selective_summarization': return 'selective semantic';
     default: return strategy;
   }
 }
@@ -128,15 +128,16 @@ export default function ConfigIndicator({ onStrategyChange, onProviderChange }: 
             setShowStrategyDropdown(false);
           }}
           disabled={switchingProvider}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/5 border border-[var(--border-subtle)] hover:border-blue-500/30 hover:bg-blue-500/5 transition-all text-left"
-          title="Switch active LLM provider"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/[0.03] border border-[var(--border-subtle)] hover:border-[var(--accent)]/20 hover:bg-[var(--accent-surface)] transition-all text-left"
         >
-          <span className="text-[10px]">🤖</span>
-          <span className="text-[10px] font-medium text-[var(--text-secondary)]">
-            {switchingProvider ? 'Switching LLM...' : config.displayName}
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          </svg>
+          <span className="text-[10px] font-mono text-[var(--text-muted)]">
+            {switchingProvider ? 'switching...' : config.displayName.toLowerCase()}
           </span>
           <svg
-            width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2"
+            width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2"
             className={`transition-transform duration-200 ${showProviderDropdown ? 'rotate-180' : ''}`}
           >
             <polyline points="6 9 12 15 18 9" />
@@ -145,12 +146,11 @@ export default function ConfigIndicator({ onStrategyChange, onProviderChange }: 
 
         {/* Provider Dropdown */}
         {showProviderDropdown && config.availableProviders && (
-          <div className="absolute top-full left-0 mt-1 min-w-[220px] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg shadow-xl z-50 overflow-hidden animate-fade-in">
+          <div className="absolute top-full left-0 mt-1 min-w-[200px] bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-lg shadow-2xl z-50 overflow-hidden animate-fade-in-fast">
             <div className="px-3 py-2 border-b border-[var(--border-subtle)] flex items-center justify-between">
-              <span className="text-[9px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-                Select LLM Provider
+              <span className="text-[9px] font-medium text-[var(--text-muted)] uppercase tracking-widest font-mono">
+                llm provider
               </span>
-              <span className="text-[9px] text-blue-400 font-mono">4 Registered</span>
             </div>
             <div className="py-1">
               {config.availableProviders.map((p: ProviderInfo) => {
@@ -161,23 +161,23 @@ export default function ConfigIndicator({ onStrategyChange, onProviderChange }: 
                     onClick={() => handleProviderSwitch(p.name)}
                     className={`w-full text-left px-3 py-2 text-[11px] transition-colors flex items-center justify-between ${
                       isSelected
-                        ? 'text-blue-400 bg-blue-500/10 font-medium'
-                        : 'text-[var(--text-secondary)] hover:bg-white/5'
+                        ? 'text-[var(--accent)] bg-[var(--accent-surface)]'
+                        : 'text-[var(--text-secondary)] hover:bg-white/[0.03]'
                     }`}
                   >
                     <div className="flex flex-col">
-                      <div className="flex items-center gap-1.5">
-                        <span>{p.displayName}</span>
+                      <div className="flex items-center gap-1.5 font-mono">
+                        <span>{p.displayName.toLowerCase()}</span>
                         {p.healthy && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Online" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)]" title="Online" />
                         )}
                       </div>
-                      <span className="text-[9px] text-[var(--text-muted)] capitalize">
-                        {p.configured ? (p.healthy ? 'Ready & Healthy' : 'Configured (Standby)') : 'Requires API Key'}
+                      <span className="text-[9px] text-[var(--text-muted)] font-mono">
+                        {p.configured ? (p.healthy ? 'ready' : 'standby') : 'needs api key'}
                       </span>
                     </div>
                     {isSelected && (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     )}
@@ -197,15 +197,17 @@ export default function ConfigIndicator({ onStrategyChange, onProviderChange }: 
             setShowProviderDropdown(false);
           }}
           disabled={switchingStrategy}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/5 border border-[var(--border-subtle)] hover:border-purple-500/30 hover:bg-purple-500/5 transition-all text-left"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/[0.03] border border-[var(--border-subtle)] hover:border-[var(--accent)]/20 hover:bg-[var(--accent-surface)] transition-all text-left"
           title="Switch Context Management Strategy"
         >
-          <span className="text-[10px]">🧠</span>
-          <span className="text-[10px] font-medium text-[var(--text-secondary)]">
-            {switchingStrategy ? 'Switching...' : getStrategyDisplayName(config.strategy)}
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a10 10 0 1 0 10 10" /><path d="M12 2v10l7 4" />
+          </svg>
+          <span className="text-[10px] font-mono text-[var(--text-muted)]">
+            {switchingStrategy ? 'switching...' : getStrategyDisplayName(config.strategy)}
           </span>
           <svg
-            width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2"
+            width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2"
             className={`transition-transform duration-200 ${showStrategyDropdown ? 'rotate-180' : ''}`}
           >
             <polyline points="6 9 12 15 18 9" />
@@ -214,12 +216,11 @@ export default function ConfigIndicator({ onStrategyChange, onProviderChange }: 
 
         {/* Strategy Dropdown */}
         {showStrategyDropdown && config.availableStrategies && (
-          <div className="absolute top-full left-0 mt-1 min-w-[240px] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-lg shadow-xl z-50 overflow-hidden animate-fade-in">
+          <div className="absolute top-full left-0 mt-1 min-w-[220px] bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] rounded-lg shadow-2xl z-50 overflow-hidden animate-fade-in-fast">
             <div className="px-3 py-2 border-b border-[var(--border-subtle)] flex items-center justify-between">
-              <span className="text-[9px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">
-                Context Strategy
+              <span className="text-[9px] font-medium text-[var(--text-muted)] uppercase tracking-widest font-mono">
+                context strategy
               </span>
-              <span className="text-[9px] text-purple-400 font-mono">3 Strategies</span>
             </div>
             <div className="py-1">
               {config.availableStrategies.map((strat) => {
@@ -230,23 +231,23 @@ export default function ConfigIndicator({ onStrategyChange, onProviderChange }: 
                     onClick={() => handleStrategySwitch(strat)}
                     className={`w-full text-left px-3 py-2 text-[11px] transition-colors ${
                       isSelected
-                        ? 'text-purple-400 bg-purple-500/10 font-medium'
-                        : 'text-[var(--text-secondary)] hover:bg-white/5'
+                        ? 'text-[var(--accent)] bg-[var(--accent-surface)]'
+                        : 'text-[var(--text-secondary)] hover:bg-white/[0.03]'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col">
-                        <span>{getStrategyDisplayName(strat)}</span>
-                        <span className="text-[9px] text-[var(--text-muted)]">
+                        <span className="font-mono">{getStrategyDisplayName(strat)}</span>
+                        <span className="text-[9px] text-[var(--text-muted)] font-mono">
                           {strat === 'selective_summarization'
-                            ? 'Architectural blueprint & entity extraction'
+                            ? 'blueprint & entity extraction'
                             : strat === 'recursive_summarization'
-                              ? 'Incremental conversational summarization'
-                              : 'Fixed-size FIFO recent message buffer'}
+                              ? 'incremental summarization'
+                              : 'fixed-size recent buffer'}
                         </span>
                       </div>
                       {isSelected && (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       )}

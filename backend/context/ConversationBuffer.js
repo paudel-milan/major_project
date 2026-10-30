@@ -44,6 +44,12 @@ class ConversationBuffer {
     if (sessionId && this._sessions.has(sessionId)) {
       return this._sessions.get(sessionId);
     }
+    if (sessionId) {
+      const session = new Session(sessionId);
+      this._sessions.set(sessionId, session);
+      logger.info('Buffer', `Session created: ${sessionId}`);
+      return session;
+    }
     const id = this.createSession();
     return this._sessions.get(id);
   }
